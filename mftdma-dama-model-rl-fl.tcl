@@ -6,8 +6,8 @@
 
 ;# testing == 1  enables tracing for debugging purposes
 
-if { $argc != 7 } {
-	puts "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC>"
+if { $argc != 8 } {
+	puts "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <AVBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC>"
 	exit 0
 }
 
@@ -21,7 +21,7 @@ Allocator/MFTDMA set forget_debit_ 1      ;# Carry-Next-Frame=0, Not-Carry-Next-
 Allocator/MFTDMA set hwin_ 400
 Requester/Combiner set req_period_ 0.080
 # RBDC request = alpha_ * RATE + (1-alpha_)*PREV_REQUEST
-Requester/Combiner set alpha_ [lindex $argv 4]
+Requester/Combiner set alpha_ [lindex $argv 5]
 Requester/Combiner set win_ [expr int(0.6/[Requester/Combiner set req_period_]+1)]
 
 set testing            1
@@ -48,15 +48,15 @@ set voip(interval)      0.08
 set voip(burst_time)    0.46
 set voip(idle_time)     0.54
 set voip(plen)            96
-set voip(no_voip)       [lindex $argv 3] 
+set voip(no_voip)       [lindex $argv 4] 
 set voip(index)            0
 
-set no_terminals         [lindex $argv 5]
+set no_terminals         [lindex $argv 6]
 
 set num_cos 8
 
 set NbrFLC 1
-set NbrRLC [lindex $argv 6]
+set NbrRLC [lindex $argv 7]
 
 set traffic_duration 10.0
 set start 1.0
@@ -165,7 +165,42 @@ proc new-rl-tcp-poisson { i } {
 	global ns tcpexp hq user mtu data_prio num_cos
 	global start reset stop no_terminals
 
-	set rs [new Agent/TCP/FullTcp/Sack]
+	set rs [new Agent/TCP/FullTcp/Sack]	
+	# Print TCP parameters
+	#   Window_ sets the ssthreshold. Terrestrial TCP senders use as
+#		initial ssthreshold value of 38 pkts as it is common.
+#		Since the advwindow is implemented this value is only used to initialize the value of 
+#		ssthreshold and must be sufficient high to not distub the operation of TCP sender
+#		Note that cwnd_ is bounded by min (window_, advwindow_, maxcwnd_)
+#		For Satelite TCP sender a high value is set to analize in TCP SACk baseline the Slow Start
+#		behaviour over LFN satelite networks preventing the smooth transition between Slow Start 
+#		and Congestion Avoidance phases.
+# 	$rs set window_ 20
+#   $rs set window_ $buff_size_pkts
+	puts "TCP slow start threshold: [$rs set window_]"
+#   $rs set tcpTick_ 0.01
+	puts "TCP tick: [$rs set tcpTick_]"
+# default value
+#   $rs set windowInit_ 2
+#   $rs set windowInit_ 3
+#   $rs set windowInit_ 10
+#   $rs set windowInit_ $buff_size_pkts
+    puts "TCP initial window size: [$rs set windowInit_]"
+#	puts "TCP initial window size: [$rs set wnd_init_]"
+# 		The advwindow_ initial value is set the initial ssthreshold value in TCP senders. This 
+#		value is used by TCP sender until the receiver updates its value to the advertize receiver 
+#		window 
+#   $rs set advwindow_ 		[$rs set window_]
+	# puts "TCP advertised window size: [$rs set advwindow_]"
+	# The advertised window is simulated by simply telling the sender a bound on the window size (wnd_).
+	# In real TCP, a user process performing a read (via PRU_RCVD) calls tcp_output each time to (possibly) send a window
+    # update.  Here we don't have a user process, so we simulate a user process always ready to consume all the receive buffer *
+ # Notes: wnd_, wnd_init_, cwnd_, ssthresh_ are in segment units, sequence and ack numbers are in byte units
+ 	# puts "TCP advertised window size: [$rs set wnd_]"
+#		maxcwnd_ is the upper bound of TCP sender cwnd_	. The cwnd_ is bounded by 
+#		min (advwindow_, maxcwnd_)	
+# 	$rs set maxcwnd_ 5000
+	puts "TCP maximum congestion window size: [$rs set maxcwnd_]"
 	$rs set tcpip_base_hdr_size_ 40
 	$rs set segsize_ [expr $mtu-[$rs set tcpip_base_hdr_size_]]
 	$rs set packetSize_ [expr $mtu-[$rs set tcpip_base_hdr_size_]]
@@ -255,9 +290,9 @@ set sat_rl [$ns node]
 # GEO satellite at 13 degrees longitude East (Hotbird 6)
 # $sat_rl set-position 13
 # GEO satellite at 24.9 degrees longitude East (Alphasat)
-# $sat_rl set-position 24.9
+$sat_rl set-position 24.9
 # GEO satellite at 25.1 degrees longitude East (I4)
-$sat_rl set-position 25.1
+# $sat_rl set-position 25.1
 
 set sat_fl [$ns node]
 $sat_fl set-position 25.1
@@ -280,9 +315,12 @@ $ns queue-limit $hq $hub_fl [expr 50 + 3*$no_terminals]
 $ns setup-geolink $hub_fl $sat_fl
 set hub_fl_mac [$hub_fl set mac_(0)]
 
+
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_fl($i) [$ns node]
-	$rcst_fl($i) set-position 43.71 10.38
+#	$rcst_fl($i) set-position 43.71 10.38
+	# Place terminals at different locations in a diagonal line starting from -15, 15 and down to 0, 0 (the Null Island) 
+	$rcst_fl($i) set-position [expr -15 + $i * 15/$no_terminals] [expr 15 - $i * 15/$no_terminals]
 	$ns simplex-link $rcst_fl($i) $user($i) $lan_capacity $lan_delay DropTail
 	$ns queue-limit $rcst_fl($i) $user($i) 50
 	$ns setup-geolink $rcst_fl($i) $sat_fl
@@ -326,7 +364,12 @@ $ns at $reset "$em_hub set rate_ $per"
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_rl($i) [$ns node]
-	$rcst_rl($i) set-position 43.71 10.38
+#	$rcst_rl($i) set-position 43.71 10.38
+# Place terminals at different locations in a diagonal line starting from -15, 15 and down to 0, 0 (the Null Island) 
+	set latitude [expr -15 + $i * 15/$no_terminals]
+	set longitude [expr 15 - $i * 15/$no_terminals]
+	puts "Terminal $i at $latitude, $longitude"
+	$rcst_rl($i) set-position  $latitude $longitude	
 	$ns simplex-link $user($i) $rcst_rl($i) $lan_capacity $lan_delay DropTail
 	$ns queue-limit $user($i) $rcst_rl($i) 50	
 	$ns at 0.0 "$rcst_rl($i) start-req"
@@ -363,6 +406,7 @@ $ns at $reset "$hub_fl_mac reset"
 #### Return Link 
 
 # ATM
+# 1 carriers with 16 timeslots per carrier and 53 bytes per timeslot => 1*16*53*8/0.080 = 84.800 kbit/s => 1 cell assigned per frame are 5.300 kbit/s
 set f0 [$rrm_rl new-frame $NbrRLC 16 53]
 
 for {set i 0} {$i<$no_terminals} {incr i} {
@@ -370,6 +414,7 @@ for {set i 0} {$i<$no_terminals} {incr i} {
 	$rrm_rl cra $ter_rl_mac($i) [lindex $argv 0]
 	[$rcst_rl($i) set requester_] set rbdc_ [lindex $argv 1]
 	[$rcst_rl($i) set requester_] set vbdc_ [lindex $argv 2]
+	[$rcst_rl($i) set requester_] set avbdc_ [lindex $argv 3]
 	$ns at $reset "$ter_rl_mac($i) reset"
 }
 
@@ -420,6 +465,8 @@ proc finish-sim {} {
 	
 	puts "RL terminal 0 used $used_rl bytes of total $total_rl (efficiency $eff_rl) after t=$reset s."
 	puts "FL used $used_fl bytes of total $total_fl (occupation $eff_fl) after t=$reset s."
+#	puts "Allocator assigned [$rrm_rl set total_assigned_slots_] slots of [$rrm_rl set total_available_slots_]"
+#	puts "Allocator maximum slots assigned on a frame: [$rrm_rl set max_assigned_slots_] of [$rrm_rl set slot_c#ount_]"
 #	$voip(r0) update_score
 #	puts "[$voip(r0) set max_delay_] [$voip(r0) set rscore_] [$voip(r0) set mos_]"
 
@@ -432,10 +479,13 @@ for {set i 0} {$i<$no_terminals} {incr i} {
 		# $ns at $start "new-fl-voip [expr $i*$voip(no_voip)+$j]"
 		# $ns at $start "new-pings [expr $i*$voip(no_voip)+$j]"
 		$ns at $start "new-pings $i"
+#		$ns at $start "new-rl-tcp-poisson $i"
 		# $ns at $start "new-rl-tcp-poisson [expr $i*$voip(no_voip)+$j]"
 		# $ns at $start "new-fl-tcp-poisson [expr $i*$voip(no_voip)+$j]"
 	#}
 }
+
+$ns at $start "new-rl-tcp-poisson 0"
 
 $ns at $duration "finish-sim"
 
