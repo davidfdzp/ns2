@@ -1,13 +1,13 @@
 #!/home/raffaello/ns-allinone-2.35/ns-2.35/ns
 # ERG-UoA Aberdeen (UK), May 2008
-# D. Fernández - September 2017
+# D. Fernández - November 2017
 
 # CONFIGURATION VARIABLES ###########################################
 
 ;# testing == 1  enables tracing for debugging purposes
 
-if { $argc != 8 } {
-	puts "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <AVBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC>"
+if { $argc != 9 } {
+	puts "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <AVBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC> <NbrFLC>"
 	exit 0
 }
 
@@ -51,12 +51,12 @@ set voip(plen)            96
 set voip(no_voip)       [lindex $argv 4] 
 set voip(index)            0
 
-set no_terminals         [lindex $argv 6]
+set num_cos 13
 
-set num_cos 8
-
-set NbrFLC 1
+set no_terminals [lindex $argv 6]
 set NbrRLC [lindex $argv 7]
+set NbrFLC [lindex $argv 8]
+set no_hubs $NbrFLC
 
 set traffic_duration 10.0
 set start 1.0
@@ -74,8 +74,8 @@ set duration [expr $rpingstime1 + 1.0]
 
 proc new-rl-voip { i } {
 	global ns voip hq user voice_prio
-	global start reset stop no_terminals
-
+	global start reset stop no_terminals no_hubs
+	
 	set voip(s$i) [new Application/Traffic/Voice]
 	set voip(r$i) [new Application/Traffic/Voice]
 	set udp_s [new Agent/UDP]
@@ -95,9 +95,10 @@ proc new-rl-voip { i } {
 	$udp_r set index $i
 
 	set n [expr [ns-random] % $no_terminals]
+	set hq_n [expr [ns-random] % $no_hubs]
 
 	$ns attach-agent $user($n) $udp_s
-	$ns attach-agent $hq $udp_r	
+	$ns attach-agent $hq($hq_n) $udp_r	
 	$ns connect $udp_s $udp_r
 
 	$ns at $start "$voip(s$i) start"
@@ -107,8 +108,8 @@ proc new-rl-voip { i } {
 
 proc new-fl-voip { i } {
 	global ns voip hq user voice_prio
-	global start reset stop no_terminals
-
+	global start reset stop no_terminals no_hubs
+	
 	set voip(s$i) [new Application/Traffic/Voice]
 	set voip(r$i) [new Application/Traffic/Voice]
 	set udp_s [new Agent/UDP]
@@ -128,8 +129,9 @@ proc new-fl-voip { i } {
 	$udp_r set index $i
 
 	set n [expr [ns-random] % $no_terminals]
+	set hq_n [expr [ns-random] % $no_hubs]
 
-	$ns attach-agent $hq $udp_s
+	$ns attach-agent $hq($hq_n) $udp_s
 	$ns attach-agent $user($n) $udp_r		
 	$ns connect $udp_s $udp_r
 
@@ -140,13 +142,14 @@ proc new-fl-voip { i } {
 
 proc new-pings { i } {
 	global ns ping hq user
-	global rpingstime0 rpingstime1 fpingstime0 fpingstime1 no_terminals
+	global rpingstime0 rpingstime1 fpingstime0 fpingstime1 no_terminals no_hubs
 
 	set ping(r$i) [new Agent/Ping]
 	$ping(r$i) set packetSize_ 64
 	$ping(r$i) set fid_ 1
 	$ping(r$i) set prio_ 0
 	set n [expr $i % $no_terminals]
+	set hq_n [expr $i % $no_hubs]
 	$ns attach-agent $user($n) $ping(r$i)
 	$ns at $rpingstime0 "$ping(r$i) send"
 #	$ns at $rpingstime1 "$ping(r$i) send"
@@ -155,7 +158,7 @@ proc new-pings { i } {
 	$ping(f$i) set packetSize_ 64
 	$ping(f$i) set fid_ 1
 	$ping(f$i) set prio_ 0
-	$ns attach-agent $hq $ping(f$i)
+	$ns attach-agent $hq($hq_n) $ping(f$i)
 	$ns connect $ping(f$i) $ping(r$i)
 	# $ns at $fpingstime0 "$ping(f$i) send"
 	# $ns at $fpingstime1 "$ping(f$i) send"
@@ -163,7 +166,7 @@ proc new-pings { i } {
 
 proc new-rl-tcp-poisson { i } {
 	global ns tcpexp hq user mtu data_prio num_cos
-	global start reset stop no_terminals
+	global start reset stop no_terminals no_hubs
 
 	set rs [new Agent/TCP/FullTcp/Sack]	
 	# Print TCP parameters
@@ -176,6 +179,7 @@ proc new-rl-tcp-poisson { i } {
 #		behaviour over LFN satelite networks preventing the smooth transition between Slow Start 
 #		and Congestion Avoidance phases.
 # 	$rs set window_ 20
+ 	$rs set window_ 100
 #   $rs set window_ $buff_size_pkts
 	puts "TCP slow start threshold: [$rs set window_]"
 #   $rs set tcpTick_ 0.01
@@ -183,7 +187,7 @@ proc new-rl-tcp-poisson { i } {
 # default value
 #   $rs set windowInit_ 2
 #   $rs set windowInit_ 3
-#   $rs set windowInit_ 10
+    $rs set windowInit_ 10
 #   $rs set windowInit_ $buff_size_pkts
     puts "TCP initial window size: [$rs set windowInit_]"
 #	puts "TCP initial window size: [$rs set wnd_init_]"
@@ -207,9 +211,10 @@ proc new-rl-tcp-poisson { i } {
 	$rs set fid_ [expr 1 + ($i % $num_cos)]
 	$rs set prio_ $data_prio
 	set n [expr $i % $no_terminals]
+	set hq_n [expr $i % $no_hubs]
 	$ns attach-agent $user($n) $rs
 	set rsink [new Agent/TCPSink]
-	$ns attach-agent $hq $rsink
+	$ns attach-agent $hq($hq_n) $rsink
 	$ns connect $rs $rsink
 	set tcpexp(s$i) [new Application/Traffic/Exponential]
 	$tcpexp(s$i) attach-agent $rs
@@ -229,7 +234,7 @@ proc new-rl-tcp-poisson { i } {
 
 proc new-fl-tcp-poisson { i } {
 	global ns tcpexp hq user mtu data_prio num_cos
-	global start reset stop no_terminals
+	global start reset stop no_terminals no_hubs
 
 	set fs [new Agent/TCP/FullTcp/Sack]
 	$fs set tcpip_base_hdr_size_ 40
@@ -237,9 +242,10 @@ proc new-fl-tcp-poisson { i } {
 	$fs set packetSize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
 	$fs set fid_ [expr 1 + ($i % $num_cos)]
 	$fs set prio_ $data_prio	
-	$ns attach-agent $hq $fs
+	$ns attach-agent $hq($hq_n) $fs
 	set fsink [new Agent/TCPSink]
 	set n [expr $i % $no_terminals]
+	set n [expr $i % $no_hubs]
 	$ns attach-agent $user($n) $fsink
 	$ns connect $fs $fsink
 	set tcpexp(s$i) [new Application/Traffic/Exponential]
@@ -272,8 +278,10 @@ if { $testing == 1 } {
 puts "Initial PER=$bdrop_rate"
 puts "At t=$reset PER=$per"
 
-# Head-Quarter node
-set hq    [$ns node]
+# Head-quarter nodes (one per hub and FLC)
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hq($i) [$ns node]
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set user($i) [$ns node]
@@ -307,14 +315,15 @@ $ns node-config -satNodeType terminal \
 		-requesterType Requester/Combiner \
 		-phyType Phy/Sat
 
-
-set hub_fl   [$ns node]
-$hub_fl set-position 53.3 6.2; # BURUM
-$ns simplex-link $hq $hub_fl $terrestrial_capacity $terrestrial_delay DropTail
-$ns queue-limit $hq $hub_fl [expr 50 + 3*$no_terminals]
-$ns setup-geolink $hub_fl $sat_fl
-set hub_fl_mac [$hub_fl set mac_(0)]
-
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hub_fl($i)   [$ns node]
+	$hub_fl($i) set-position 53.3 6.2; # BURUM
+	$ns simplex-link $hq($i) $hub_fl($i) $terrestrial_capacity $terrestrial_delay DropTail
+	$ns queue-limit $hq($i) $hub_fl($i) [expr 50 + 3*$no_terminals/$no_hubs]
+	$ns setup-geolink $hub_fl($i) $sat_fl
+	set hub_fl_mac($i) [$hub_fl($i) set mac_(0)]
+	$ns at $starttime \"$hub_fl_mac($i) reset
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_fl($i) [$ns node]
@@ -345,22 +354,24 @@ $ns node-config -satNodeType terminal \
 		-requesterType Requester/Combiner \
 		-phyType Phy/Sat
 
-set hub_rl   [$ns node]
-$hub_rl set-position 53.3 6.2; # BURUM
-$ns simplex-link $hub_rl $hq $terrestrial_capacity $terrestrial_delay DropTail
-$ns queue-limit $hub_rl $hq [expr 50 + 3*$no_terminals]
-$ns setup-geolink $hub_rl $sat_rl
-set hub_rl_mac [$hub_rl set mac_(0)]
-# Add a packet error model to the receiving terminal
-set em_hub [new ErrorModel]
-# $em_hub unit byte
-# Byte error rate = 1 - (1-BER)^8
-# $em_hub set rate_ [expr 1-pow((1-$ber),8)]
-$em_hub unit pkt
-$em_hub set rate_ $bdrop_rate
-$em_hub ranvar [new RandomVariable/Uniform]
-$hub_rl interface-errormodel $em_hub
-$ns at $reset "$em_hub set rate_ $per"
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hub_rl($i)   [$ns node]
+	$hub_rl($i) set-position 53.3 6.2; # BURUM
+	$ns simplex-link $hub_rl($i) $hq($i) $terrestrial_capacity $terrestrial_delay DropTail
+	$ns queue-limit $hub_rl($i) $hq($i) [expr 50 + 3*$no_terminals]
+	$ns setup-geolink $hub_rl($i) $sat_rl
+	set hub_rl_mac($i) [$hub_rl($i) set mac_(0)]
+	# Add a packet error model to the receiving terminal
+	set em_hub($i) [new ErrorModel]
+	# $em_hub($i) unit byte
+	# Byte error rate = 1 - (1-BER)^8
+	# $em_hub($i) set rate_ [expr 1-pow((1-$ber),8)]
+	$em_hub($i) unit pkt
+	$em_hub($i) set rate_ $bdrop_rate
+	$em_hub($i) ranvar [new RandomVariable/Uniform]
+	$hub_rl($i) interface-errormodel $em_hub($i)
+	$ns at $reset "$em_hub($i) set rate_ $per"
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_rl($i) [$ns node]
@@ -380,17 +391,18 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 
 if { $testing == 1 } {
         set rl_ev_file [open mftdma-dama-model-rl-event.tr w]
-        $hub_rl trace-event $rl_ev_file
+		for {set i 0} { $i < $no_hubs } {incr i} {
+			$hub_rl($i) trace-event $rl_ev_file
+		}
         for {set i 0} { $i < $no_terminals } {incr i} {
-                $rcst_rl($i) trace-event $rl_ev_file
+            $rcst_rl($i) trace-event $rl_ev_file
         }
 	$ns trace-all-satlinks $outfile
 }
 
-
 # Network Control Centers
-set rrm_rl [$hub_rl install-allocator Allocator/MFTDMA]
-set rrm_fl [$hub_fl install-allocator Allocator/MFTDMA]
+set rrm_rl [$hub_rl(0) install-allocator Allocator/MFTDMA]
+set rrm_fl [$hub_fl(0) install-allocator Allocator/MFTDMA]
 
 ################### RRM CONF ######################
 
@@ -399,9 +411,11 @@ set rrm_fl [$hub_fl install-allocator Allocator/MFTDMA]
 # MPEG
 # 1 carriers with 9 timeslots per carrier and 188 bytes per timeslot => 1*9*188*8/0.080 = 169.200 kbit/s => 1 cell assigned per frame are 18.800 kbit/s
 set DL_frame [$rrm_fl new-frame $NbrFLC 9 188]
-$rrm_fl add-rule $hub_fl_mac $DL_frame
-$rrm_fl cra $hub_fl_mac [expr $NbrFLC*170]
-$ns at $reset "$hub_fl_mac reset"
+for {set i 0} {$i<$no_hubs} {incr i} {
+	$rrm_fl add-rule $hub_fl_mac($i) $DL_frame
+	$rrm_fl cra $hub_fl_mac($i) [expr 170]
+	$ns at $reset "$hub_fl_mac($i) reset"
+}
 
 #### Return Link 
 
@@ -441,34 +455,37 @@ $satrouteobject_ compute_routes
 
 
 proc finish-sim {} {
-	global testing ns rrm_rl rrm_fl ter_rl_mac hub_fl_mac voip reset
+	global testing ns rrm_rl rrm_fl ter_rl_mac hub_fl_mac voip reset no_terminals no_hubs
 
 	$ns flush-trace
+	
+	for {set i 0} {$i<$no_terminals} {incr i} {
+		set used_rl [$ter_rl_mac($i) set used_slots_]
+		set total_rl [$ter_rl_mac($i) set total_slots_]
 
-	set used_rl [$ter_rl_mac(0) set used_slots_]
-	set total_rl [$ter_rl_mac(0) set total_slots_]
-
-	if {$total_rl > 0 } {
-		set eff_rl [expr double($used_rl)/$total_rl]
-	} else {
-		set eff_rl 0.0
+		if {$total_rl > 0 } {
+			set eff_rl [expr double($used_rl)/$total_rl]
+		} else {
+			set eff_rl 0.0
+		}
+		puts "RL terminal $i used $used_rl bytes of total $total_rl (efficiency $eff_rl) after t=$reset s."
+		#	$voip(r$i) update_score
+		#	puts "[$voip(r$i) set max_delay_] [$voip(r$i) set rscore_] [$voip(r$i) set mos_]"
 	}
 	
-	set used_fl [$hub_fl_mac set used_slots_]
-	set total_fl [$hub_fl_mac set total_slots_]
+	for {set i 0} {$i<$no_hubs} {incr i} {
+		set used_fl [$hub_fl_mac($i) set used_slots_]
+		set total_fl [$hub_fl_mac($i) set total_slots_]
 
-	if {$total_fl > 0 } {
-		set eff_fl [expr double($used_fl)/$total_fl]
-	} else {
-		set eff_rl 0.0
-	}
-	
-	puts "RL terminal 0 used $used_rl bytes of total $total_rl (efficiency $eff_rl) after t=$reset s."
-	puts "FL used $used_fl bytes of total $total_fl (occupation $eff_fl) after t=$reset s."
-#	puts "Allocator assigned [$rrm_rl set total_assigned_slots_] slots of [$rrm_rl set total_available_slots_]"
-#	puts "Allocator maximum slots assigned on a frame: [$rrm_rl set max_assigned_slots_] of [$rrm_rl set slot_c#ount_]"
-#	$voip(r0) update_score
-#	puts "[$voip(r0) set max_delay_] [$voip(r0) set rscore_] [$voip(r0) set mos_]"
+		if {$total_fl > 0 } {
+			set eff_fl [expr double($used_fl)/$total_fl]
+		} else {
+			set eff_rl 0.0
+		}
+		puts "FL carrier $i used $used_fl bytes of total $total_fl (occupation $eff_fl) after t=$reset s."
+	}	
+	# puts "Allocator assigned [$rrm_rl set total_assigned_slots_] slots of [$rrm_rl set total_available_slots_]"
+	# puts "Allocator maximum slots assigned on a frame: [$rrm_rl set max_assigned_slots_] of [$rrm_rl set slot_count_]"
 
 	$ns halt
 }
@@ -485,7 +502,7 @@ for {set i 0} {$i<$no_terminals} {incr i} {
 	#}
 }
 
-$ns at $start "new-rl-tcp-poisson 0"
+# $ns at $start "new-rl-tcp-poisson 0"
 
 $ns at $duration "finish-sim"
 
