@@ -242,10 +242,10 @@ proc new-fl-tcp-poisson { i } {
 	$fs set packetSize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
 	$fs set fid_ [expr 1 + ($i % $num_cos)]
 	$fs set prio_ $data_prio	
+	set hq_n [expr $i % $no_hubs]
 	$ns attach-agent $hq($hq_n) $fs
 	set fsink [new Agent/TCPSink]
-	set n [expr $i % $no_terminals]
-	set n [expr $i % $no_hubs]
+	set n [expr $i % $no_terminals]	
 	$ns attach-agent $user($n) $fsink
 	$ns connect $fs $fsink
 	set tcpexp(s$i) [new Application/Traffic/Exponential]
@@ -322,7 +322,7 @@ for {set i 0} { $i < $no_hubs } {incr i} {
 	$ns queue-limit $hq($i) $hub_fl($i) [expr 50 + 3*$no_terminals/$no_hubs]
 	$ns setup-geolink $hub_fl($i) $sat_fl
 	set hub_fl_mac($i) [$hub_fl($i) set mac_(0)]
-	$ns at $starttime \"$hub_fl_mac($i) reset
+	$ns at $reset "$hub_fl_mac($i) reset"
 }
 
 for {set i 0} { $i < $no_terminals } {incr i} {
@@ -335,6 +335,7 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 	$ns setup-geolink $rcst_fl($i) $sat_fl
 	set ter_fl_mac($i) [$rcst_fl($i) set mac_(0)]
 	[$rcst_fl(0) set phy_tx_(0)] set bdrop_rate_ $bdrop_rate
+	$ns at $reset "$ter_fl_mac($i) reset"
 	# Add a packet error model to the FL receiving terminal
 	set em_fl_t($i) [new ErrorModel]
 	# $em_fl_t($i) unit byte
@@ -358,9 +359,10 @@ for {set i 0} { $i < $no_hubs } {incr i} {
 	set hub_rl($i)   [$ns node]
 	$hub_rl($i) set-position 53.3 6.2; # BURUM
 	$ns simplex-link $hub_rl($i) $hq($i) $terrestrial_capacity $terrestrial_delay DropTail
-	$ns queue-limit $hub_rl($i) $hq($i) [expr 50 + 3*$no_terminals]
+	$ns queue-limit $hub_rl($i) $hq($i) [expr 50 + 3*$no_terminals/$no_hubs]
 	$ns setup-geolink $hub_rl($i) $sat_rl
 	set hub_rl_mac($i) [$hub_rl($i) set mac_(0)]
+	$ns at $reset "$hub_rl_mac($i) reset"
 	# Add a packet error model to the receiving terminal
 	set em_hub($i) [new ErrorModel]
 	# $em_hub($i) unit byte
@@ -387,6 +389,7 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 	$ns setup-geolink $rcst_rl($i) $sat_rl
 	set ter_rl_mac($i) [$rcst_rl($i) set mac_(0)]
 	[$rcst_rl(0) set phy_tx_(0)] set bdrop_rate_ $bdrop_rate
+	$ns at $reset "$ter_rl_mac($i) reset"
 }
 
 if { $testing == 1 } {
@@ -413,29 +416,29 @@ set rrm_fl [$hub_fl(0) install-allocator Allocator/MFTDMA]
 set DL_frame [$rrm_fl new-frame $NbrFLC 9 188]
 for {set i 0} {$i<$no_hubs} {incr i} {
 	$rrm_fl add-rule $hub_fl_mac($i) $DL_frame
-	$rrm_fl cra $hub_fl_mac($i) [expr 170]
-	$ns at $reset "$hub_fl_mac($i) reset"
+	$rrm_fl cra $hub_fl_mac($i) 170
 }
+$ns at $reset "$rrm_fl reset"
 
 #### Return Link 
 
 # ATM
 # 1 carriers with 16 timeslots per carrier and 53 bytes per timeslot => 1*16*53*8/0.080 = 84.800 kbit/s => 1 cell assigned per frame are 5.300 kbit/s
 set f0 [$rrm_rl new-frame $NbrRLC 16 53]
-
 for {set i 0} {$i<$no_terminals} {incr i} {
 	$rrm_rl add-rule $ter_rl_mac($i) $f0
 	$rrm_rl cra $ter_rl_mac($i) [lindex $argv 0]
 	[$rcst_rl($i) set requester_] set rbdc_ [lindex $argv 1]
 	[$rcst_rl($i) set requester_] set vbdc_ [lindex $argv 2]
-	[$rcst_rl($i) set requester_] set avbdc_ [lindex $argv 3]
-	$ns at $reset "$ter_rl_mac($i) reset"
+	[$rcst_rl($i) set requester_] set avbdc_ [lindex $argv 3]	
 }
 
 if { $testing == 1 } {
 	$ns at $start {
 		set ps_anim_rl [open "mftdma-dama-model-rl_superframe.ps" w]
 		$rrm_rl trace-sf $ps_anim_rl
+		set ps_anim_fl [open "mftdma-dama-model-fl_superframe.ps" w]
+		$rrm_fl trace-sf $ps_anim_fl
 	}
 }
 
@@ -458,6 +461,14 @@ proc finish-sim {} {
 	global testing ns rrm_rl rrm_fl ter_rl_mac hub_fl_mac voip reset no_terminals no_hubs
 
 	$ns flush-trace
+
+	set min_eff_rl 1.0
+	set max_eff_rl 0.0
+	set mean_eff_rl 0.0
+	
+	set min_eff_fl 1.0
+	set max_eff_fl 0.0
+	set mean_eff_fl 0.0
 	
 	for {set i 0} {$i<$no_terminals} {incr i} {
 		set used_rl [$ter_rl_mac($i) set used_slots_]
@@ -469,9 +480,18 @@ proc finish-sim {} {
 			set eff_rl 0.0
 		}
 		puts "RL terminal $i used $used_rl bytes of total $total_rl (efficiency $eff_rl) after t=$reset s."
+		# Update efficiency stats
+		set mean_eff_rl [expr $mean_eff_rl + $eff_rl]
+		if {$eff_rl < $min_eff_rl} {
+			set min_eff_rl $eff_rl
+		}
+		if {$eff_rl > $max_eff_rl} {
+			set max_eff_rl $eff_rl
+		}		
 		#	$voip(r$i) update_score
 		#	puts "[$voip(r$i) set max_delay_] [$voip(r$i) set rscore_] [$voip(r$i) set mos_]"
 	}
+	set mean_eff_rl [expr $mean_eff_rl/$no_terminals]
 	
 	for {set i 0} {$i<$no_hubs} {incr i} {
 		set used_fl [$hub_fl_mac($i) set used_slots_]
@@ -483,7 +503,19 @@ proc finish-sim {} {
 			set eff_rl 0.0
 		}
 		puts "FL carrier $i used $used_fl bytes of total $total_fl (occupation $eff_fl) after t=$reset s."
+		# Update efficiency stats
+		set mean_eff_fl [expr $mean_eff_fl + $eff_fl]
+		if {$eff_fl < $min_eff_fl} {
+			set min_eff_fl $eff_fl
+		}
+		if {$eff_fl > $max_eff_fl} {
+			set max_eff_fl $eff_fl
+		}
 	}	
+	set mean_eff_fl [expr $mean_eff_fl/$no_hubs]
+	
+	puts "RL terminals efficiency from $min_eff_rl to $max_eff_rl ($mean_eff_rl average of $no_terminals)"
+	puts "FL carriers occupation from $min_eff_fl to $max_eff_fl ($mean_eff_fl average of $no_hubs)"
 	# puts "Allocator assigned [$rrm_rl set total_assigned_slots_] slots of [$rrm_rl set total_available_slots_]"
 	# puts "Allocator maximum slots assigned on a frame: [$rrm_rl set max_assigned_slots_] of [$rrm_rl set slot_count_]"
 

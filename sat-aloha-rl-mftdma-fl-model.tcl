@@ -30,7 +30,7 @@ set rpingstime1 [expr $fpingstime1 + 1.0]
 set duration [expr $rpingstime1 + 1.0]
 
 if { $argc <1 } {
-	puts stderr {usage: ns sat-aloha-rl-mftdma-fl-model.tcl (basic | basic_tracing | poisson) <num_terminals> [NbrRLC] }
+	puts stderr {usage: ns sat-aloha-rl-mftdma-fl-model.tcl (basic | basic_tracing | poisson) <num_terminals> [NbrRLC [NbrFLC]] }
 	exit 1
 }
 
@@ -42,9 +42,13 @@ set NbrFLC 1
 
 if { $argc > 2 } {
 	set NbrRLC [lindex $argv 2]
+	if { $argc > 3 } {
+		set NbrFLC [lindex $argv 3]
+	}
 } else {
-	set NbrRLC 1
+	set NbrRLC 1	
 }
+set no_hubs $NbrFLC
 puts "Running test $test_ with $no_terminals terminals, $NbrFLC FL carriers and $NbrRLC RL carriers..."
 
 ns-random 0
@@ -99,17 +103,17 @@ set terrestrial_capacity      100Mb
 set lan_delay         10.000ms
 set lan_capacity      100Mb
 
-set num_cos 8
+set num_cos 16
 
 proc new-pings { i } {
 	global ns ping hq user
-	global rpingstime0 rpingstime1 fpingstime0 fpingstime1 no_terminals
+	global rpingstime0 rpingstime1 fpingstime0 fpingstime1 no_terminals no_hubs
 
 	set ping(r$i) [new Agent/Ping]
 	$ping(r$i) set packetSize_ 64
 	$ping(r$i) set fid_ 1
 	$ping(r$i) set prio_ 0
-	set n [expr $i % $no_terminals]
+	set n [expr $i % $no_terminals]	
 	$ns attach-agent $user($n) $ping(r$i)
 	$ns at $rpingstime0 "$ping(r$i) send"
 #	$ns at $rpingstime1 "$ping(r$i) send"
@@ -118,7 +122,8 @@ proc new-pings { i } {
 	$ping(f$i) set packetSize_ 64
 	$ping(f$i) set fid_ 1
 	$ping(f$i) set prio_ 0
-	$ns attach-agent $hq $ping(f$i)
+	set hq_n [expr $i % $no_hubs]
+	$ns attach-agent $hq($hq_n) $ping(f$i)
 	$ns connect $ping(f$i) $ping(r$i)
 	# $ns at $fpingstime0 "$ping(f$i) send"
 	# $ns at $fpingstime1 "$ping(f$i) send"
@@ -126,18 +131,21 @@ proc new-pings { i } {
 
 proc new-rl-tcp-poisson { i } {
 	global ns tcpexp hq user mtu data_prio num_cos
-	global start reset stop no_terminals
+	global start reset stop no_terminals no_hubs
 
 	set rs [new Agent/TCP/FullTcp/Sack]
+	$rs set window_ 100
+	$rs set windowInit_ 10
 	$rs set tcpip_base_hdr_size_ 40
 	$rs set segsize_ [expr $mtu-[$rs set tcpip_base_hdr_size_]]
 	$rs set packetSize_ [expr $mtu-[$rs set tcpip_base_hdr_size_]]
 	$rs set fid_ [expr 1 + ($i % $num_cos)]
 	$rs set prio_ $data_prio
 	set n [expr $i % $no_terminals]
+	set hq_n [expr $i % $no_hubs]
 	$ns attach-agent $user($n) $rs
 	set rsink [new Agent/TCPSink]
-	$ns attach-agent $hq $rsink
+	$ns attach-agent $hq($hq_n) $rsink
 	$ns connect $rs $rsink
 	set tcpexp(s$i) [new Application/Traffic/Exponential]
 	$tcpexp(s$i) attach-agent $rs
@@ -157,7 +165,7 @@ proc new-rl-tcp-poisson { i } {
 
 proc new-fl-tcp-poisson { i } {
 	global ns tcpexp hq user mtu data_prio num_cos
-	global start reset stop no_terminals
+	global start reset stop no_terminals no_hubs
 
 	set fs [new Agent/TCP/FullTcp/Sack]
 	$fs set tcpip_base_hdr_size_ 40
@@ -165,7 +173,8 @@ proc new-fl-tcp-poisson { i } {
 	$fs set packetSize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
 	$fs set fid_ [expr 1 + ($i % $num_cos)]
 	$fs set prio_ $data_prio	
-	$ns attach-agent $hq $fs
+	set hq_n [expr $i % $no_hubs]
+	$ns attach-agent $hq($hq_n) $fs
 	set fsink [new Agent/TCPSink]
 	set n [expr $i % $no_terminals]
 	$ns attach-agent $user($n) $fsink
@@ -214,8 +223,10 @@ puts "At t=$reset PER=$per"
 
 # Normal nodes
 
-# Head-Quarter node
-set hq    [$ns node]
+# Head-quarter nodes (one per hub and FLC)
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hq($i) [$ns node]
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set user($i) [$ns node]
@@ -247,12 +258,15 @@ $ns node-config -satNodeType terminal \
 				-requesterType Requester/Combiner \
 				-phyType Phy/Sat
 
-set hub_fl [$ns node]
-$hub_fl set-position 53.3 6.2; # BURUM
-$ns simplex-link $hq $hub_fl $terrestrial_capacity $terrestrial_delay DropTail
-$ns queue-limit $hq $hub_fl [expr 50 + 3*$no_terminals]
-$ns setup-geolink $hub_fl $sat_fl
-set hub_fl_mac [$hub_fl set mac_(0)]
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hub_fl($i) [$ns node]
+	$hub_fl($i) set-position 53.3 6.2; # BURUM
+	$ns simplex-link $hq($i) $hub_fl($i) $terrestrial_capacity $terrestrial_delay DropTail
+	$ns queue-limit $hq($i) $hub_fl($i) [expr 50 + 3*$no_terminals/$no_hubs]
+	$ns setup-geolink $hub_fl($i) $sat_fl
+	set hub_fl_mac($i) [$hub_fl($i) set mac_(0)]
+	$ns at $reset "$hub_fl_mac($i) reset"
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_fl($i) [$ns node]
@@ -264,6 +278,7 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 	$ns setup-geolink $rcst_fl($i) $sat_fl
 	set ter_fl_mac($i) [$rcst_fl($i) set mac_(0)]
 	[$rcst_fl(0) set phy_tx_(0)] set bdrop_rate_ $bdrop_rate
+	$ns at $reset "$ter_fl_mac($i) reset"
 	# Add a packet error model to the FL receiving terminal
 	set em_fl_t($i) [new ErrorModel]
 	# $em_fl_t($i) unit byte
@@ -305,24 +320,26 @@ $ns node-config -satNodeType terminal \
 				-downlinkBW $optAir(bw_down) \
 				-wiredRouting $optAir(wiredRouting)
 
-# Place Hub
-set hub_rl [$ns node]
-$hub_rl set-position 53.3 6.2; # BURUM
-$ns simplex-link $hub_rl $hq $terrestrial_capacity $terrestrial_delay DropTail
-$ns queue-limit $hub_rl $hq [expr 50 + 3*$no_terminals]
-# Add GSLs to geo satellite from/to the hub
-$hub_rl add-gsl geo $optAir(ll) $optAir(ifq) $optAir(qlim) $optAir(mac) $optAir(bw_up) \
-$optAir(phy) [$sat_rl set downlink_] [$sat_rl set uplink_]
+# Place Hub's modems
+for {set i 0} { $i < $no_hubs } {incr i} {
+	set hub_rl($i) [$ns node]
+	$hub_rl($i) set-position 53.3 6.2; # BURUM
+	$ns simplex-link $hub_rl($i) $hq($i) $terrestrial_capacity $terrestrial_delay DropTail
+	$ns queue-limit $hub_rl($i) $hq($i) [expr 50 + 3*$no_terminals/$no_hubs]
+	# Add GSLs to geo satellite from/to the hub
+	$hub_rl($i) add-gsl geo $optAir(ll) $optAir(ifq) $optAir(qlim) $optAir(mac) $optAir(bw_up) \
+		$optAir(phy) [$sat_rl set downlink_] [$sat_rl set uplink_]
 
-# Add an error model to the receiving terminal node in the hub
-set em_ [new ErrorModel]
-# $em_ unit byte
-# Byte error rate = 1 - (1-BER)^8
-# $em_ set rate_ [expr 1-pow((1-$ber),8)]
-$em_ unit pkt
-$em_ set rate_ $per
-$em_ ranvar [new RandomVariable/Uniform]
-$hub_rl interface-errormodel $em_
+	# Add an error model to the receiving terminal node in the hub
+	set em_hub($i) [new ErrorModel]
+	# $em_hub($i) unit byte
+	# Byte error rate = 1 - (1-BER)^8
+	# $em_hub($i) set rate_ [expr 1-pow((1-$ber),8)]
+	$em_hub($i) unit pkt
+	$em_hub($i) set rate_ $per
+	$em_hub($i) ranvar [new RandomVariable/Uniform]
+	$hub_rl($i) interface-errormodel $em_hub($i)
+}
 
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set rcst_rl($i) [$ns node]
@@ -332,17 +349,19 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 	# Place terminals at different locations in a diagonal line starting from -15, 15 and down to 0, 0 (the Null Island) 
 	$rcst_rl($i) set-position [expr -15 + $i * 15/$no_terminals] [expr 15 - $i * 15/$no_terminals]
 	$rcst_rl($i) add-gsl geo $optAir(ll) $optAir(ifq) $optAir(qlim) $optAir(mac) $optAir(bw_up) \
-$optAir(phy) [$sat_rl set downlink_] [$sat_rl set uplink_]	
+		$optAir(phy) [$sat_rl set downlink_] [$sat_rl set uplink_]	
 }
 
 if { $testing == 1 } {
 	set fl_ev_file [open fl_event_rl_aloha.tr w]
-	$hub_fl trace-event $fl_ev_file
+	for {set i 0} { $i < $no_hubs } {incr i} {
+		$hub_fl($i) trace-event $fl_ev_file
+	}
 	$ns trace-all-satlinks $outfile
 }
 
 # Network Control Center
-set rrm_fl [$hub_fl install-allocator Allocator/MFTDMA]
+set rrm_fl [$hub_fl(0) install-allocator Allocator/MFTDMA]
 
 ################### RRM CONF ######################
 
@@ -353,9 +372,11 @@ set rrm_fl [$hub_fl install-allocator Allocator/MFTDMA]
 # MPEG
 # 1 carriers with 9 timeslots per carrier and 188 bytes per timeslot => 1*9*188*8/0.080 = 169.200 kbit/s => 1 cell assigned per frame are 18.800 kbit/s
 set DL_frame [$rrm_fl new-frame $NbrFLC 9 188]
-$rrm_fl add-rule $hub_fl_mac $DL_frame
-$rrm_fl cra $hub_fl_mac [expr $NbrFLC*170]
-$ns at $reset "$hub_fl_mac reset"
+for {set i 0} {$i<$no_hubs} {incr i} {
+	$rrm_fl add-rule $hub_fl_mac($i) $DL_frame
+	$rrm_fl cra $hub_fl_mac($i) 170
+}
+$ns at $reset "$rrm_fl reset"
 
 if { $testing == 1 } {
 	$ns at $start {
@@ -363,6 +384,7 @@ if { $testing == 1 } {
 		$rrm_fl trace-sf $ps_anim_fl
 	}
 }
+
 #Define a 'recv' function for the class 'Agent/Ping'
 Agent/Ping instproc recv {from rtt} {
 	global ns
@@ -376,21 +398,36 @@ set satrouteobject_ [new SatRouteObject]
 $satrouteobject_ compute_routes
 
 proc finish-sim {} {
-	global testing ns rrm_fl test_ hub_fl_mac reset
+	global testing ns rrm_fl test_ hub_fl_mac reset no_hubs
 	
 	$ns flush-trace
 	
-	set used_fl [$hub_fl_mac set used_slots_]
-	set total_fl [$hub_fl_mac set total_slots_]
-	if {$total_fl > 0} {
-		set eff_fl [expr double($used_fl)/$total_fl]
-	} else {
-		set eff_fl 0
+	set min_eff_fl 1.0
+	set max_eff_fl 0.0
+	set mean_eff_fl 0.0
+	
+	for {set i 0} {$i<$no_hubs} {incr i} {
+		set used_fl [$hub_fl_mac($i) set used_slots_]
+		set total_fl [$hub_fl_mac($i) set total_slots_]
+		if {$total_fl > 0} {
+			set eff_fl [expr double($used_fl)/$total_fl]
+		} else {
+			set eff_fl 0
+		}
+		puts "FL carrier $i used $used_fl of $total_fl bytes assigned (occupation $eff_fl) after t=$reset s."
+		# Update efficiency stats
+		set mean_eff_fl [expr $mean_eff_fl + $eff_fl]
+		if {$eff_fl < $min_eff_fl} {
+			set min_eff_fl $eff_fl
+		}
+		if {$eff_fl > $max_eff_fl} {
+			set max_eff_fl $eff_fl
+		}
 	}
-	puts "Hub used $used_fl of $total_fl bytes assigned (occupation $eff_fl)"
-
+	set mean_eff_fl [expr $mean_eff_fl/$no_hubs]
+	puts "FL carriers occupation from $min_eff_fl to $max_eff_fl ($mean_eff_fl average of $no_hubs)"
+	
 	$ns halt
-
 }
 
 for {set i 0} {$i<$no_terminals} {incr i} {
