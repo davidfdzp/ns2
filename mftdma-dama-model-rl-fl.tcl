@@ -7,8 +7,8 @@
 ;# testing == 1  enables tracing for debugging purposes
 
 if { $argc != 9 } {
-	puts "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <AVBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC> <NbrFLC>"
-	exit 0
+	puts stderr "usage: ns mftdma-dama-model-rl-fl.tcl <CRA kbps> <RBDC=0/1> <VBDC=0/1> <AVBDC=0/1> <# streams/term> <smoothing par. alpha (0,1) for RBDC (the higher the smoother)> <num_terminals> <NbrRLC> <NbrFLC>"
+	exit 1
 }
 
 ns-random 0
@@ -47,7 +47,7 @@ set mtu 1500
 set voip(interval)      0.08
 set voip(burst_time)    0.46
 set voip(idle_time)     0.54
-set voip(plen)            96
+set voip(plen)            130
 set voip(no_voip)       [lindex $argv 4] 
 set voip(index)            0
 
@@ -458,7 +458,7 @@ $satrouteobject_ compute_routes
 
 
 proc finish-sim {} {
-	global testing ns rrm_rl rrm_fl ter_rl_mac hub_fl_mac voip reset no_terminals no_hubs
+	global testing outfile ns rrm_rl rrm_fl ter_rl_mac hub_fl_mac voip reset no_terminals no_hubs
 
 	$ns flush-trace
 
@@ -511,7 +511,7 @@ proc finish-sim {} {
 		if {$eff_fl > $max_eff_fl} {
 			set max_eff_fl $eff_fl
 		}
-	}	
+	}
 	set mean_eff_fl [expr $mean_eff_fl/$no_hubs]
 	
 	puts "RL terminals efficiency from $min_eff_rl to $max_eff_rl ($mean_eff_rl average of $no_terminals)"
@@ -519,6 +519,8 @@ proc finish-sim {} {
 	# puts "Allocator assigned [$rrm_rl set total_assigned_slots_] slots of [$rrm_rl set total_available_slots_]"
 	# puts "Allocator maximum slots assigned on a frame: [$rrm_rl set max_assigned_slots_] of [$rrm_rl set slot_count_]"
 
+	close $outfile
+	
 	$ns halt
 }
 
