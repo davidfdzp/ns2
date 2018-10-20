@@ -8,6 +8,7 @@
 # Traffic profile:
 # CoS 1 packets: Each video source of this type is modeled as a Markovian ON/OFF source with mean bit-rate of 0.2 Mbps, mean ON phase duration of 1 s, mean OFF phase duration of 4 s, and bit-rate during ON period equal to 1 Mbps.
 # CoS 2 packets: Each video source of this type is modeled as a Markovian ON/OFF source with mean bit-rate of 1 Mbps, mean ON phase duration of 0.4 s, mean OFF phase duration of 2 s, and bit-rate during ON period equal to 6 Mbps.
+# CoS 3 packets: Five minutes FTP/TCP transfer.
 # Then generate at each user terminal 5 Mbit/s: 5 QoS1 flows and 4 QoS2 flows, so (0.2 Mbit/s * 5) / (1 Mbit/s * 4) = 1/4
 # MTU 1500 bytes => 6 UTs will generate 30 Mbit/s, i.e. 2500 packets/s on average, of which 500 packets/s are of QoS1 and 2000 packets/s of QoS2.
 # So for the overall 6 UTs, for QoS 1 queue size must be <= 75 packets and for QoS 2 queue size must be <= 2000 packets.
@@ -22,15 +23,16 @@
 # 32APSK 8/9 at 416.650 Mbit/s with probability 0.18138
 # which would imply an FLC at an average of 276.093 Mbit/s
 # Results: PLR and average delay in function of number of UTs for the different CoS.
-# one-way latencies to test: GEO (250 - 267 ms), MEO (65 - 75 ms) and LEO (15 - 21 ms or 120 ms with ISL) 
+# one-way latencies to test: GEO 263 ms (250 - 267 ms), MEO (65 - 75 ms) and LEO (15 - 21 ms or 120 ms with ISL) 
 # two-way latencies on the user plane: GEO (600 ms), MEO (180 ms), LEO (50 ms), as per 3GPP TR 38.913 V14.3.0 (2017-06) section 7.5.
 # two-way latencies on the user plane: SES 17 GEO HTS (650 ms), mPower MEO (150 ms), LeoSat (from 20 to 130 ms)
 
-if { $argc !=6 } {
-	puts stderr {usage: ns model_datalink.tcl <RLC kbps> <FLC kbps> <# VoIP streams/term> <no_terminals> <NbrRLC> <NbrFLC> }
+if { $argc !=9 } {
+	puts stderr {usage: ns model_datalink.tcl <RLC kbps> <FLC kbps> <# VoIP streams/term> <#RL TCP streams/term> <#FL TCP streams/term> <no_terminals> <NbrRLC> <NbrFLC> <scenario> }
 	puts stderr {e.g.:} 
-	puts stderr {ns model_datalink.tcl 71 22 1 2 4 2}
-	puts stderr {ns model_datalink.tcl 55000 55000 5 6 1 1}
+	puts stderr {ns model_datalink.tcl 71 22 1 0 0 2 4 2 none}
+	puts stderr {ns model_datalink.tcl 55000 55000 5 0 0 6 1 1 GEO}
+	puts stderr {ns model_datalink.tcl 100000 100000 0 1 0 1 1 1 GEO}
 	exit 1
 }
 
@@ -51,35 +53,48 @@ set voip(burst_time)    1.0
 set voip(idle_time)     4.0
 set voip(plen)            1500
 set voip(deadline)		150e-3
-set no_streams_term [lindex $argv 2] 
+set no_streams_term [lindex $argv 2]
+set no_rl_tcps_term [lindex $argv 3] 
+set no_fl_tcps_term [lindex $argv 4]
 set rlvoip(index) 0
 set flvoip(index) 0
 set rltcpexp(index) 0
 set fltcpexp(index) 0
-set no_terminals [lindex $argv 3]
-set NbrRLC [lindex $argv 4]
+set no_terminals [lindex $argv 5]
+set NbrRLC [lindex $argv 6]
 if { $NbrRLC > $no_terminals } {
 	set no_terminals $NbrRLC
 }
-set NbrFLC [lindex $argv 5]
+set NbrFLC [lindex $argv 7]
 set bwRL [expr [lindex $argv 0] * $NbrRLC]
 set bwFL [expr [lindex $argv 1] * $NbrFLC]
 
+set type [lindex $argv 8]
+
 set tx_latency_per_FLC_ms 135
+set rx_latency_per_FLC 135ms
+set tx_latency_per_RLC_ms 135
+set rx_latency_per_RLC 135ms
+
+if { $type == "GEO" } {
+	set tx_latency_per_FLC_ms 131.5
+	set tx_latency_per_RLC_ms 131.5
+} elseif { $type == "MEO" } {
+} elseif { $type == "LEO" } {
+} elseif { $type == "LEO-ISL" } {
+}
+
 set tx_latency_per_FLC [expr $tx_latency_per_FLC_ms]ms
 
 # Rx capacity per FLC = bwRL / NbrFL
 set rx_capacity_per_FLC [expr ceil(1.0 * $bwRL / $NbrFLC)]kb
-set rx_latency_per_FLC 135ms
 
-set tx_latency_per_RLC_ms 135
 set tx_latency_per_RLC [expr $tx_latency_per_RLC_ms]ms
 
 set rx_capacity_per_RLC $tx_capacity_per_FLC
-set rx_latency_per_RLC 135ms
 
 set onboard_net_delay         10.000ms
-set onboard_net_capacity_Mb	  1000
+set onboard_net_capacity_Mb	1000
 set onboard_net_capacity      [expr $onboard_net_capacity_Mb]Mb
 
 set per 0.0
@@ -87,11 +102,13 @@ set per 0.0
 # set per 1e-3
 set ber 0.0
 set rl_ber $ber
-set rl_cell_size 53
 # Assuming RL L2 frames are ATM cells (53 bytes cells, 48 bytes payload)
+# set rl_cell_size 53
+set rl_cell_size 200
 set rl_ber [expr 1-pow((1-$per),[expr 1/($rl_cell_size*8.0)])]
-set fl_cell_size 188
 # Assuming FL L2 frames are MPEG packets (188 bytes cells, 184 bytes payload)
+# set fl_cell_size 188
+set fl_cell_size 8100
 set fl_ber [expr 1-pow((1-$per),[expr 1/($fl_cell_size*8.0)])]
 set mtu 1500
 
@@ -117,7 +134,7 @@ set stop  [expr $reset + $traffic_duration]
 set rpingstime0 $start
 set fpingstime0 [expr $rpingstime0 + 1.0]
 
-puts "Running test with $no_terminals terminals and $no_streams_term VoIP sessions per terminal, at $bwFL kb FL with $NbrFLC FL datalink carriers and at $bwRL kb RL with $NbrRLC RL datalink carriers..."
+puts "Running test with $no_terminals terminals, $no_streams_term RL VoIP sessions per terminal, $no_rl_tcps_term RL TCPs per terminal and $no_fl_tcps_term FL TCPs per terminal, at $bwFL kb FL with $NbrFLC FL datalink carriers and at $bwRL kb RL with $NbrRLC RL datalink carriers..."
 # puts "PER = $per"
 puts "PER = $per (RL BER $rl_ber, FL BER $fl_ber)"
 puts "Rx capacity per FLC $rx_capacity_per_FLC"
@@ -217,7 +234,7 @@ proc new-fl-voip { i k } {
 # ICMP traffic
 
 proc new-pings { i k } {
-	global ns ping h n
+	global ns ping h n num_cos ping_prio
 	global rpingstime0 rpingstime1 fpingstime0 fpingstime1 no_terminals NbrFLC
 
 	set ping(r$i) [new Agent/Ping]

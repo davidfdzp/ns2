@@ -270,127 +270,167 @@ do
 done
 
 
-# Plot to PNG file throughput from first hub and goodput to first node data per QoS
+# Plot to PNG files non-empty throughput files from first hub and goodput to first node data per QoS
 for (( j=0; j<$NUM_FID; j++ ))
 do
-	echo > gnuplotFL$j\.in
-	echo "set xlabel \"Time (s)\"" >> gnuplotFL$j\.in
-	echo "set ylabel \"bits/s\"" >> gnuplotFL$j\.in
-	echo "set term png" >> gnuplotFL$j\.in
-	echo "set output \"plotFL$j\.png\"" >> gnuplotFL$j\.in
-	echo "plot \"model_datalink_throughput_1_$j\.txt\" with lines title \"QoS $j throughput from hub 1\", \"model_datalink_goodput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j goodput to node $FIRST_NODE\"" >> gnuplotFL$j\.in
-	gnuplot gnuplotFL$j\.in
+	NUM_LINES=`cat model_datalink_throughput_1\_$j\.txt | wc -l`
+	if [ $NUM_LINES -gt 1 ]
+	then
+		echo > gnuplotFL$j\.in
+		echo "set xlabel \"Time (s)\"" >> gnuplotFL$j\.in
+		echo "set ylabel \"bits/s\"" >> gnuplotFL$j\.in
+		echo "set term png" >> gnuplotFL$j\.in
+		echo "set output \"plotFL$j\.png\"" >> gnuplotFL$j\.in
+		echo "plot \"model_datalink_throughput_1_$j\.txt\" with lines title \"QoS $j throughput from hub 1\", \"model_datalink_goodput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j goodput to node $FIRST_NODE\"" >> gnuplotFL$j\.in
+		gnuplot gnuplotFL$j\.in
+	fi
 done
 # Interactive Plot of two first QoS
 gnuplot -e "plot \"model_datalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"model_datalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"model_datalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"model_datalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
-	echo "The figure~\ref{fig:thpFirstFL$j} shows for QoS $j the forward datalink throughput from first hub and the goodput at the first remote node." >> model_datalink.tex
-	echo "\begin{figure}[!h]" >> model_datalink.tex
-	echo "\centering" >> model_datalink.tex
-	echo "\includegraphics[width=\textwidth]{plotFL$j.png}" >> model_datalink.tex
-	echo "\caption{Throughput from first hub and goodput at first node for QoS $j.}" >> model_datalink.tex
-	echo "\label{fig:thpFirstFL$j}" >> model_datalink.tex
-	echo "\end{figure}" >> model_datalink.tex
-	echo "" >> model_datalink.tex
+	NUM_LINES=`cat model_datalink_throughput_1\_$j\.txt | wc -l`
+	if [ $NUM_LINES -gt 1 ]
+	then
+		echo "The figure~\ref{fig:thpFirstFL$j} shows for QoS $j the forward datalink throughput from first hub and the goodput at the first remote node." >> model_datalink.tex
+		echo "\begin{figure}[!h]" >> model_datalink.tex
+		echo "\centering" >> model_datalink.tex
+		echo "\includegraphics[width=\textwidth]{plotFL$j.png}" >> model_datalink.tex
+		echo "\caption{Throughput from first hub and goodput at first node for QoS $j.}" >> model_datalink.tex
+		echo "\label{fig:thpFirstFL$j}" >> model_datalink.tex
+		echo "\end{figure}" >> model_datalink.tex
+		echo "" >> model_datalink.tex
+	fi
 done
 
-# Plot to PNG file FL delay data
-echo > gnuplotFL$NUM_FID\.in
-echo "set xlabel \"Time (s)\"" >> gnuplotFL$NUM_FID\.in
-echo "set ylabel \"Time (s)\"" >> gnuplotFL$NUM_FID\.in
-echo "set yrange [0:]" >> gnuplotFL$NUM_FID\.in
-echo "set term png" >> gnuplotFL$NUM_FID\.in
-echo "set output \"plotFL$NUM_FID\.png\"" >> gnuplotFL$NUM_FID\.in
-echo "plot \"model_datalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"model_datalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\"" >> gnuplotFL$NUM_FID\.in
-gnuplot gnuplotFL$NUM_FID\.in
-echo > gnuplotFLZoom$NUM_FID\.in
-echo "set xlabel \"Time (s)\"" >> gnuplotFLZoom$NUM_FID\.in
-echo "set ylabel \"Time (s)\"" >> gnuplotFLZoom$NUM_FID\.in
-echo "set term png" >> gnuplotFLZoom$NUM_FID\.in
-echo "set output \"plotFLZoom$NUM_FID\.png\"" >> gnuplotFLZoom$NUM_FID\.in
-echo "plot \"model_datalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"model_datalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\"" >> gnuplotFLZoom$NUM_FID\.in
-gnuplot gnuplotFLZoom$NUM_FID\.in
+# Plot to PNG file non-empty FL delay data
+NUM_LINES=`cat model_datalink_delay_$FIRST_NODE\_0.txt | wc -l`
+if [ $NUM_LINES -gt 0 ]
+then
+	echo > gnuplotFL$NUM_FID\.in
+	echo "set xlabel \"Time (s)\"" >> gnuplotFL$NUM_FID\.in
+	echo "set ylabel \"Time (s)\"" >> gnuplotFL$NUM_FID\.in
+	echo "set yrange [0:]" >> gnuplotFL$NUM_FID\.in
+	echo "set term png" >> gnuplotFL$NUM_FID\.in
+	echo "set output \"plotFL$NUM_FID\.png\"" >> gnuplotFL$NUM_FID\.in
+	echo "plot \"model_datalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"model_datalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\"" >> gnuplotFL$NUM_FID\.in
+	gnuplot gnuplotFL$NUM_FID\.in
+	echo > gnuplotFLZoom$NUM_FID\.in
+	echo "set xlabel \"Time (s)\"" >> gnuplotFLZoom$NUM_FID\.in
+	echo "set ylabel \"Time (s)\"" >> gnuplotFLZoom$NUM_FID\.in
+	echo "set term png" >> gnuplotFLZoom$NUM_FID\.in
+	echo "set output \"plotFLZoom$NUM_FID\.png\"" >> gnuplotFLZoom$NUM_FID\.in
+	echo "plot \"model_datalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"model_datalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\"" >> gnuplotFLZoom$NUM_FID\.in
+	gnuplot gnuplotFLZoom$NUM_FID\.in
+fi
 # Interactive Plot
 gnuplot -e "plot \"model_datalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"model_datalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\" ; pause -1"
 
-echo "The figures~\ref{fig:delayFirstFL} and~\ref{fig:delayFirstFLZoom} show the forward link delay per QoS of packets to the first remote node." >> model_datalink.tex
-echo "\begin{figure}[!h]" >> model_datalink.tex
-echo "\centering" >> model_datalink.tex
-echo "\includegraphics[width=\textwidth]{plotFL$NUM_FID.png}" >> model_datalink.tex
-echo "\caption{Forward link delay to first node per QoS.}" >> model_datalink.tex
-echo "\label{fig:delayFirstFL}" >> model_datalink.tex
-echo "\end{figure}" >> model_datalink.tex
-echo "" >> model_datalink.tex
-echo "\begin{figure}[!h]" >> model_datalink.tex
-echo "\centering" >> model_datalink.tex
-echo "\includegraphics[width=\textwidth]{plotFLZoom$NUM_FID.png}" >> model_datalink.tex
-echo "\caption{Forward link delay to first node per QoS zoomed.}" >> model_datalink.tex
-echo "\label{fig:delayFirstFLZoom}" >> model_datalink.tex
-echo "\end{figure}" >> model_datalink.tex
-echo "" >> model_datalink.tex
+NUM_LINES=`cat model_datalink_delay_$FIRST_NODE\_0.txt | wc -l`
+if [ $NUM_LINES -gt 0 ]
+then
+	echo "The figures~\ref{fig:delayFirstFL} and~\ref{fig:delayFirstFLZoom} show the forward link delay per QoS of packets to the first remote node." >> model_datalink.tex
+	echo "\begin{figure}[!h]" >> model_datalink.tex
+	echo "\centering" >> model_datalink.tex
+	echo "\includegraphics[width=\textwidth]{plotFL$NUM_FID.png}" >> model_datalink.tex
+	echo "\caption{Forward link delay to first node per QoS.}" >> model_datalink.tex
+	echo "\label{fig:delayFirstFL}" >> model_datalink.tex
+	echo "\end{figure}" >> model_datalink.tex
+	echo "" >> model_datalink.tex
+	echo "\begin{figure}[!h]" >> model_datalink.tex
+	echo "\centering" >> model_datalink.tex
+	echo "\includegraphics[width=\textwidth]{plotFLZoom$NUM_FID.png}" >> model_datalink.tex
+	echo "\caption{Forward link delay to first node per QoS zoomed.}" >> model_datalink.tex
+	echo "\label{fig:delayFirstFLZoom}" >> model_datalink.tex
+	echo "\end{figure}" >> model_datalink.tex
+	echo "" >> model_datalink.tex
+fi
 
-# Plot to PNG file throughput from first node and goodput to first hub data per QoS
+# Plot to PNG file non-emtpy throughput from first node and goodput to first hub data per QoS
 for (( j=0; j<$NUM_FID; j++ ))
 do
-	echo > gnuplotRL$j\.in
-	echo "set xlabel \"Time (s)\"" >> gnuplotRL$j\.in
-	echo "set ylabel \"bits/s\"" >> gnuplotRL$j\.in
-	echo "set term png" >> gnuplotRL$j\.in
-	echo "set output \"plotRL$j\.png\"" >> gnuplotRL$j\.in
-	echo "plot \"model_datalink_throughput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j throughput from first node\", \"model_datalink_goodput_1_$j\.txt\" with lines title \"QoS $j goodput to hub 1\"" >> gnuplotRL$j\.in
-	gnuplot gnuplotRL$j\.in
+	NUM_LINES=`cat model_datalink_goodput_1\_$j\.txt | wc -l`
+	if [ $NUM_LINES -gt 1 ]
+	then
+		echo > gnuplotRL$j\.in
+		echo "set xlabel \"Time (s)\"" >> gnuplotRL$j\.in
+		echo "set ylabel \"bits/s\"" >> gnuplotRL$j\.in
+		echo "set term png" >> gnuplotRL$j\.in
+		echo "set output \"plotRL$j\.png\"" >> gnuplotRL$j\.in
+		echo "plot \"model_datalink_throughput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j throughput from first node\", \"model_datalink_goodput_1_$j\.txt\" with lines title \"QoS $j goodput to hub 1\"" >> gnuplotRL$j\.in
+		gnuplot gnuplotRL$j\.in
+	fi
 done
 # Interactive Plot of two first QoS in the RL
 gnuplot -e "plot \"model_datalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"model_datalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"model_datalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"model_datalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
-	echo "The figure~\ref{fig:thpFirstRL$j} shows for QoS $j the return datalink throughput from first node and the goodput at hub 1." >> model_datalink.tex
-	echo "\begin{figure}[!h]" >> model_datalink.tex
-	echo "\centering" >> model_datalink.tex
-	echo "\includegraphics[width=\textwidth]{plotRL$j.png}" >> model_datalink.tex
-	echo "\caption{Throughput from first node and goodput at hub 1 for QoS $j.}" >> model_datalink.tex
-	echo "\label{fig:thpFirstRL$j}" >> model_datalink.tex
-	echo "\end{figure}" >> model_datalink.tex
-	echo "" >> model_datalink.tex
+	NUM_LINES=`cat model_datalink_goodput_$i\_$j\.txt | wc -l`
+	if [ $NUM_LINES -gt 1 ]
+	then
+		echo "The figure~\ref{fig:thpFirstRL$j} shows for QoS $j the return datalink throughput from first node and the goodput at hub 1." >> model_datalink.tex
+		echo "\begin{figure}[!h]" >> model_datalink.tex
+		echo "\centering" >> model_datalink.tex
+		echo "\includegraphics[width=\textwidth]{plotRL$j.png}" >> model_datalink.tex
+		echo "\caption{Throughput from first node and goodput at hub 1 for QoS $j.}" >> model_datalink.tex
+		echo "\label{fig:thpFirstRL$j}" >> model_datalink.tex
+		echo "\end{figure}" >> model_datalink.tex
+		echo "" >> model_datalink.tex
+	fi
 done
 
 # Plot to PNG file RL delay data
-echo > gnuplotRL$NUM_FID\.in
-echo "set xlabel \"Time (s)\"" >> gnuplotRL$NUM_FID\.in
-echo "set ylabel \"Time (s)\"" >> gnuplotRL$NUM_FID\.in
-echo "set yrange [0:]" >> gnuplotRL$NUM_FID\.in
-echo "set term png" >> gnuplotRL$NUM_FID\.in
-echo "set output \"plotRL$NUM_FID\.png\"" >> gnuplotRL$NUM_FID\.in
-echo "plot \"model_datalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"model_datalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\"" >> gnuplotRL$NUM_FID\.in
-gnuplot gnuplotRL$NUM_FID\.in
-echo > gnuplotRLZoom$NUM_FID\.in
-echo "set xlabel \"Time (s)\"" >> gnuplotRLZoom$NUM_FID\.in
-echo "set ylabel \"Time (s)\"" >> gnuplotRLZoom$NUM_FID\.in
-echo "set term png" >> gnuplotRLZoom$NUM_FID\.in
-echo "set output \"plotRLZoom$NUM_FID\.png\"" >> gnuplotRLZoom$NUM_FID\.in
-echo "plot \"model_datalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"model_datalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\"" >> gnuplotRLZoom$NUM_FID\.in
-gnuplot gnuplotRLZoom$NUM_FID\.in
+NUM_LINES=`cat model_datalink_delay_1\_0\.txt | wc -l`
+if [ $NUM_LINES -gt 0 ]
+then
+	NUM_LINES=`cat model_datalink_delay_1\_1\.txt | wc -l`
+	if [ $NUM_LINES -gt 0 ]
+	then
+		echo > gnuplotRL$NUM_FID\.in
+		echo "set xlabel \"Time (s)\"" >> gnuplotRL$NUM_FID\.in
+		echo "set ylabel \"Time (s)\"" >> gnuplotRL$NUM_FID\.in
+		echo "set yrange [0:]" >> gnuplotRL$NUM_FID\.in
+		echo "set term png" >> gnuplotRL$NUM_FID\.in
+		echo "set output \"plotRL$NUM_FID\.png\"" >> gnuplotRL$NUM_FID\.in
+		echo "plot \"model_datalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"model_datalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\"" >> gnuplotRL$NUM_FID\.in
+		gnuplot gnuplotRL$NUM_FID\.in
+		echo > gnuplotRLZoom$NUM_FID\.in
+		echo "set xlabel \"Time (s)\"" >> gnuplotRLZoom$NUM_FID\.in
+		echo "set ylabel \"Time (s)\"" >> gnuplotRLZoom$NUM_FID\.in
+		echo "set term png" >> gnuplotRLZoom$NUM_FID\.in
+		echo "set output \"plotRLZoom$NUM_FID\.png\"" >> gnuplotRLZoom$NUM_FID\.in
+		echo "plot \"model_datalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"model_datalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\"" >> gnuplotRLZoom$NUM_FID\.in
+		gnuplot gnuplotRLZoom$NUM_FID\.in
+	fi
+fi
 # Interactive Plot
 gnuplot -e "plot \"model_datalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"model_datalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
 
-echo "The figures~\ref{fig:delayFirstRL} and~\ref{fig:delayFirstRLZoom} show the return link delay per QoS of packets to hub 1." >> model_datalink.tex
-echo "\begin{figure}[!h]" >> model_datalink.tex
-echo "\centering" >> model_datalink.tex
-echo "\includegraphics[width=\textwidth]{plotRL$NUM_FID.png}" >> model_datalink.tex
-echo "\caption{Return link delay to hub 1 per QoS.}" >> model_datalink.tex
-echo "\label{fig:delayFirstRL}" >> model_datalink.tex
-echo "\end{figure}" >> model_datalink.tex
-echo "" >> model_datalink.tex
-echo "\begin{figure}[!h]" >> model_datalink.tex
-echo "\centering" >> model_datalink.tex
-echo "\includegraphics[width=\textwidth]{plotRLZoom$NUM_FID.png}" >> model_datalink.tex
-echo "\caption{Return link delay to hub 1 per QoS zoomed.}" >> model_datalink.tex
-echo "\label{fig:delayFirstRLZoom}" >> model_datalink.tex
-echo "\end{figure}" >> model_datalink.tex
-echo "" >> model_datalink.tex
+NUM_LINES=`cat model_datalink_delay_1\_0\.txt | wc -l`
+if [ $NUM_LINES -gt 0 ]
+then
+	NUM_LINES=`cat model_datalink_delay_1\_1\.txt | wc -l`
+	if [ $NUM_LINES -gt 0 ]
+	then
+		echo "The figures~\ref{fig:delayFirstRL} and~\ref{fig:delayFirstRLZoom} show the return link delay per QoS of packets to hub 1." >> model_datalink.tex
+		echo "\begin{figure}[!h]" >> model_datalink.tex
+		echo "\centering" >> model_datalink.tex
+		echo "\includegraphics[width=\textwidth]{plotRL$NUM_FID.png}" >> model_datalink.tex
+		echo "\caption{Return link delay to hub 1 per QoS.}" >> model_datalink.tex
+		echo "\label{fig:delayFirstRL}" >> model_datalink.tex
+		echo "\end{figure}" >> model_datalink.tex
+		echo "" >> model_datalink.tex
+		echo "\begin{figure}[!h]" >> model_datalink.tex
+		echo "\centering" >> model_datalink.tex
+		echo "\includegraphics[width=\textwidth]{plotRLZoom$NUM_FID.png}" >> model_datalink.tex
+		echo "\caption{Return link delay to hub 1 per QoS zoomed.}" >> model_datalink.tex
+		echo "\label{fig:delayFirstRLZoom}" >> model_datalink.tex
+		echo "\end{figure}" >> model_datalink.tex
+		echo "" >> model_datalink.tex
+	fi
+fi
 
 echo "\begin{thebibliography}{1}" >> model_datalink.tex
 echo "\bibitem{Intro:ns2} T. Issariyakul, E. Hossain, \emph{Introduction to Network Simulator NS2}.\hskip 1em plus 0.5em minus 0.4em\relax Springer, 2008." >> model_datalink.tex
