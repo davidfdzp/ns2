@@ -122,9 +122,11 @@ source sat-iridium-links.tcl
 # Set up terrestrial nodes
 $ns node-config -satNodeType terminal
 set n100 [$ns node]
-$n100 set-position 37.9 -122.3; # Berkeley
+# $n100 set-position 37.9 -122.3; # Berkeley
+$n100 set-position 0 0
 set n101 [$ns node]
-$n101 set-position 42.3 -71.1; # Boston 
+# $n101 set-position 42.3 -71.1; # Boston 
+$n101 set-position 0 1
 
 # Add GSL links
 # It doesn't matter what the sat node is (handoff algorithm will reset it)
@@ -197,7 +199,7 @@ proc finish {} {
 	$ns flush-trace
 	close $outfile
 	close $fileId
-
+	exec ./sat-iridium-ping.sh
 	exit 0
 }
 
