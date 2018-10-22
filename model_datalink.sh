@@ -367,7 +367,7 @@ gnuplot -e "plot \"model_datalink_throughput_$FIRST_NODE\_0.txt\" with lines tit
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
-	NUM_LINES=`cat model_datalink_goodput_$i\_$j\.txt | wc -l`
+	NUM_LINES=`cat model_datalink_goodput_$FIRST_NODE\_$j\.txt | wc -l`
 	if [ $NUM_LINES -gt 1 ]
 	then
 		echo "The figure~\ref{fig:thpFirstRL$j} shows for QoS $j the return datalink throughput from first node and the goodput at hub 1." >> model_datalink.tex

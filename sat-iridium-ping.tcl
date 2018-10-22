@@ -126,7 +126,7 @@ set n100 [$ns node]
 $n100 set-position 0 0
 set n101 [$ns node]
 # $n101 set-position 42.3 -71.1; # Boston 
-$n101 set-position 0 1
+$n101 set-position 0 10
 
 # Add GSL links
 # It doesn't matter what the sat node is (handoff algorithm will reset it)
@@ -157,17 +157,34 @@ $ns connect $udp0 $null0
 set filename "RTTs.txt"
 set fileId [open $filename "w"]
 
+set max_rtt 0
+set min_rtt 10000
+set avg 0
+set quk 0
+set num_pings_rx 0
+set num_pings_tx 0
 
 # CBR packet size
 set ping_pkt_size 210
 
+puts "PING size $ping_pkt_size bytes"
+
 #Define a 'recv' function for the class 'Agent/Ping'
 Agent/Ping instproc recv {from rtt} {
-	global ns fileId
+	global ns fileId avg quk num_pings_rx last_avg max_rtt min_rtt
 	$self instvar node_
 	puts "t=[$ns now]: node [$node_ id] received ping answer from \
 	$from with round-trip-time $rtt ms."
 	puts $fileId "[$ns now] $rtt"
+	if { $rtt < $min_rtt } {
+		set min_rtt $rtt
+	}
+	if { $rtt > $max_rtt } {
+		set max_rtt $rtt
+	}
+	set num_pings_rx [expr $num_pings_rx + 1]
+	set quk [expr $quk + (($num_pings_rx - 1.0)/$num_pings_rx)*pow($rtt - $avg, 2)]
+	set avg [expr $avg + ($rtt - $avg)*1.0/$num_pings_rx]
 }
 
 set pingtx [new Agent/Ping]
@@ -188,17 +205,20 @@ $satrouteobject_ compute_routes
 
 set duration 86400 ; # one earth rotation
 
-for { set i 1} { $i < $duration } {incr i} {
+for { set i 0} { $i < $duration } {incr i} {
 	$ns at $i "$pingtx send"
+	set num_pings_tx [expr $num_pings_tx + 1]
 }
 
 $ns at $duration "finish"
 
 proc finish {} {
-	global ns outfile fileId
+	global ns outfile fileId num_pings_tx num_pings_rx min_rtt max_rtt avg quk duration
 	$ns flush-trace
 	close $outfile
 	close $fileId
+	puts "$num_pings_tx packets transmitted, $num_pings_rx received, [expr 100*($num_pings_tx-$num_pings_rx)/$num_pings_tx]% packet loss, time $duration s"
+	puts "rtt min/avg/max/stdev = $min_rtt/$avg/$max_rtt/[expr sqrt(1.0*$quk/($num_pings_rx-1))] ms"
 	exec ./sat-iridium-ping.sh
 	exit 0
 }
