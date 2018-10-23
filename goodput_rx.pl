@@ -35,10 +35,11 @@ while (<DATA>) {
 		}
 	}
 }
-$throughput=$sum/$granularity;
-print STDOUT "$x[1] $throughput\n";
-$clock=$clock+$granularity;
-$sum=0;
+# Uncomment for summary
+# $throughput=$sum/$granularity;
+# print STDOUT "$x[1] $throughput\n";
+# $clock=$clock+$granularity;
+# $sum=0;
 
 close DATA;
 

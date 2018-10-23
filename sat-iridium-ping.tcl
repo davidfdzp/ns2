@@ -171,7 +171,7 @@ puts "PING size $ping_pkt_size bytes"
 
 #Define a 'recv' function for the class 'Agent/Ping'
 Agent/Ping instproc recv {from rtt} {
-	global ns fileId avg quk num_pings_rx last_avg max_rtt min_rtt
+	global ns fileId avg quk num_pings_rx max_rtt min_rtt
 	$self instvar node_
 	puts "t=[$ns now]: node [$node_ id] received ping answer from \
 	$from with round-trip-time $rtt ms."
