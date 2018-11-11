@@ -235,12 +235,15 @@ echo "" >> modelDatalink.tex
 # perl percentile.pl web_durations.txt 1 95 >> modelDatalink.txt
 # perl percentile.pl web_durations.txt 1 99.9 >> modelDatalink.txt
 
+echo "Forward or download link TCP throughput and goodput." >> modelDatalink.tex
+echo "" >> modelDatalink.tex
 for (( i=1; i<=$N_FLC; i++ ))
 do	
 	for (( j=0; j<$NUM_FID; j++ ))
 	do
 		# Create fid j throughput from hub i file with specified granularity in seconds
 		perl throughput_tx.pl modelDatalink.tr 1 $i $j > modelDatalink_throughput_$i\_$j.txt
+		perl tcp_throughput.pl modelDatalink.tr $i $j >> modelDatalink.tex
 	done
 done
 for (( i=$FIRST_NODE; i<=$LAST_NODE; i++ ))
@@ -249,15 +252,18 @@ do
 	do
 		# Create fid j goodput to node i file with specified granularity in seconds
 		perl goodput_rx.pl modelDatalink.tr 1 $i $j > modelDatalink_goodput_$i\_$j.txt
+		perl tcp_goodput.pl modelDatalink.tr $i $j >> modelDatalink.tex
 	done
 done
-
+echo "Return or upload link TCP throughput and goodput." >> modelDatalink.tex
+echo "" >> modelDatalink.tex
 for (( i=$FIRST_NODE; i<=$LAST_NODE; i++ ))
 do	
 	for (( j=0; j<$NUM_FID; j++ ))
 	do
 		# Create fid j throughput from node i file with specified granularity in seconds
 		perl throughput_tx.pl modelDatalink.tr 1 $i $j > modelDatalink_throughput_$i\_$j.txt
+		perl tcp_throughput.pl modelDatalink.tr $i $j >> modelDatalink.tex
 	done
 done
 for (( i=1; i<=$N_FLC; i++ ))
@@ -266,6 +272,7 @@ do
 	do
 		# Create fid j goodput to hub i file with specified granularity in seconds
 		perl goodput_rx.pl modelDatalink.tr 1 $i $j > modelDatalink_goodput_$i\_$j.txt
+		perl tcp_goodput.pl modelDatalink.tr $i $j >> modelDatalink.tex
 	done
 done
 
@@ -286,7 +293,7 @@ do
 	fi
 done
 # Interactive Plot of two first QoS
-gnuplot -e "plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\" ; pause -1"
+# gnuplot -e "plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
@@ -365,7 +372,9 @@ do
 	fi
 done
 # Interactive Plot of two first QoS in the RL
-gnuplot -e "plot \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
+# gnuplot -e "plot \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
+
+gnuplot -e "plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
@@ -384,8 +393,8 @@ do
 done
 
 # Plot to PNG file RL delay data
-NUM_LINES0=`cat modelDatalink_delay_1\_0\.txt | wc -l`
-NUM_LINES0=`cat modelDatalink_delay_1\_1\.txt | wc -l`
+NUM_LINES0=`cat modelDatalink_delay_1\_0.txt | wc -l`
+NUM_LINES1=`cat modelDatalink_delay_1\_1.txt | wc -l`
 if [ $NUM_LINES0 -gt 0 -o $NUM_LINES1 -gt 0 ]
 then
 	echo > gnuplotRL$NUM_FID\.in
@@ -407,8 +416,10 @@ fi
 # Interactive Plot
 gnuplot -e "plot \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
 
-NUM_LINES0=`cat modelDatalink_delay_1\_0\.txt | wc -l`
-NUM_LINES1=`cat modelDatalink_delay_1\_1\.txt | wc -l`
+# gnuplot -e "plot \"modelDatalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"modelDatalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\", \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
+
+NUM_LINES0=`cat modelDatalink_delay_1\_0.txt | wc -l`
+NUM_LINES1=`cat modelDatalink_delay_1\_1.txt | wc -l`
 if [ $NUM_LINES0 -gt 0 -o $NUM_LINES1 -gt 0 ]
 then	
 	echo "The figures~\ref{fig:delayFirstRL} and~\ref{fig:delayFirstRLZoom} show the return link delay per QoS of packets to hub 1." >> modelDatalink.tex

@@ -75,7 +75,7 @@ set fl_ber $ber
 set mtu 1500
 set ack_size 52
 
-set tcp_duration 60
+set tcp_duration 240
 
 set rl_bdp_factor 3
 set fl_bdp_factor 1
@@ -220,9 +220,9 @@ $ns color 1 Red
 # set udp_fid 0
 # Single CoS setup (all Best Effort)
 set udp_fid 1
-set tcp_fid 1
+set tcp_fid 0
 # In order to make plots look good do some pings with the same fid you are plotting just after the flow end
-set ping_fid 1
+set ping_fid 0
 
 # Full tracing can increase the runtime 10-fold: http://intronetworks.cs.luc.edu/current/html/ns2.html
 set f [open modelDatalink.tr w]
@@ -610,11 +610,11 @@ proc new-rl-tcp { i k t } {
 	$ns attach-agent $n($k) $rltcp($rltcp(index))
 
 	# Let's trace some TCP variables
-	$rltcp($rltcp(index)) attach $f
-	$rltcp($rltcp(index)) tracevar cwnd_
-	$rltcp($rltcp(index)) tracevar ssthresh_
-	$rltcp($rltcp(index)) tracevar ack_
-	$rltcp($rltcp(index)) tracevar maxseq_
+#	$rltcp($rltcp(index)) attach $f
+#	$rltcp($rltcp(index)) tracevar cwnd_
+#	$rltcp($rltcp(index)) tracevar ssthresh_
+#	$rltcp($rltcp(index)) tracevar ack_
+#	$rltcp($rltcp(index)) tracevar maxseq_
 
 	set rsink($rltcp(index)) [new Agent/TCPSink]
 	$rsink($rltcp(index)) set set_prio_ $set_prio
@@ -644,11 +644,11 @@ proc new-fl-tcp { i k t } {
 	$ns attach-agent $h($h_n) $fltcp($fltcp(index))
 
 	# Let's trace some TCP variables
-	$fltcp($fltcp(index)) attach $f
-	$fltcp($fltcp(index)) tracevar cwnd_
-	$fltcp($fltcp(index)) tracevar ssthresh_
-	$fltcp($fltcp(index)) tracevar ack_
-	$fltcp($fltcp(index)) tracevar maxseq_
+#	$fltcp($fltcp(index)) attach $f
+#	$fltcp($fltcp(index)) tracevar cwnd_
+#	$fltcp($fltcp(index)) tracevar ssthresh_
+#	$fltcp($fltcp(index)) tracevar ack_
+#	$fltcp($fltcp(index)) tracevar maxseq_
 
 	set fsink($fltcp(index)) [new Agent/TCPSink]
 	$fsink($fltcp(index)) set set_prio_ $set_prio
@@ -1088,20 +1088,22 @@ set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 
 # TCP tests
 $ns at $start "new-fl-tcp 0 0 $currTime"
-set currTime [expr $currTime + 5.0 + $tcp_duration]
-set pingTime $currTime
-$ns at $start "new-pings 0 0 $pingTime"
-set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+# set currTime [expr $currTime + 5.0 + $tcp_duration]
+set currTime [expr $currTime + $tcp_duration/2]
+# set pingTime $currTime
+# $ns at $start "new-pings 0 0 $pingTime"
+# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+
+# $ns at $start "new-rl-tcp 0 0 $currTime"
+# $ns at $start "new-fl-tcp 0 0 $currTime"
+# set currTime [expr $currTime + 5.0 + $tcp_duration]
+# set pingTime $currTime
+# $ns at $start "new-pings 0 0 $pingTime"
+# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 
 $ns at $start "new-rl-tcp 0 0 $currTime"
-$ns at $start "new-fl-tcp 0 0 $currTime"
-set currTime [expr $currTime + 5.0 + $tcp_duration]
-set pingTime $currTime
-$ns at $start "new-pings 0 0 $pingTime"
-set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
-
-$ns at $start "new-rl-tcp 0 0 $currTime"
-set currTime [expr $currTime + 5.0 + $tcp_duration]
+# set currTime [expr $currTime + 5.0 + $tcp_duration]
+set currTime [expr $currTime + 10.0 + $tcp_duration]
 set pingTime $currTime
 $ns at $start "new-pings 0 0 $pingTime"
 set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
