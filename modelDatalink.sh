@@ -285,7 +285,7 @@ do
 	then
 		echo > gnuplotFL$j\.in
 		echo "set xlabel \"Time (s)\"" >> gnuplotFL$j\.in
-		echo "set ylabel \"bits/s\"" >> gnuplotFL$j\.in
+		echo "set ylabel \"bit/s\"" >> gnuplotFL$j\.in
 		echo "set term png" >> gnuplotFL$j\.in
 		echo "set output \"plotFL$j\.png\"" >> gnuplotFL$j\.in
 		echo "plot \"modelDatalink_throughput_1_$j\.txt\" with lines title \"QoS $j throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j goodput to node $FIRST_NODE\"" >> gnuplotFL$j\.in
@@ -293,7 +293,7 @@ do
 	fi
 done
 # Interactive Plot of two first QoS
-# gnuplot -e "plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\" ; pause -1"
+# gnuplot -e "set xlabel \"Time(s)\";set ylabel \"bit/s\";plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
@@ -333,7 +333,7 @@ then
 	gnuplot gnuplotFLZoom$NUM_FID\.in
 fi
 # Interactive Plot
-gnuplot -e "plot \"modelDatalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"modelDatalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\" ; pause -1"
+gnuplot -e "set xlabel \"Time(s)\";set ylabel \"Time(s)\";plot \"modelDatalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"modelDatalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\" ; pause -1"
 
 NUM_LINES0=`cat modelDatalink_delay_$FIRST_NODE\_0.txt | wc -l`
 NUM_LINES1=`cat modelDatalink_delay_$FIRST_NODE\_1.txt | wc -l`
@@ -364,7 +364,7 @@ do
 	then
 		echo > gnuplotRL$j\.in
 		echo "set xlabel \"Time (s)\"" >> gnuplotRL$j\.in
-		echo "set ylabel \"bits/s\"" >> gnuplotRL$j\.in
+		echo "set ylabel \"bit/s\"" >> gnuplotRL$j\.in
 		echo "set term png" >> gnuplotRL$j\.in
 		echo "set output \"plotRL$j\.png\"" >> gnuplotRL$j\.in
 		echo "plot \"modelDatalink_throughput_$FIRST_NODE\_$j\.txt\" with lines title \"QoS $j throughput from first node\", \"modelDatalink_goodput_1_$j\.txt\" with lines title \"QoS $j goodput to hub 1\"" >> gnuplotRL$j\.in
@@ -372,9 +372,9 @@ do
 	fi
 done
 # Interactive Plot of two first QoS in the RL
-# gnuplot -e "plot \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
+# gnuplot -e "set xlabel \"Time(s)\";set ylabel \"bit/s\";plot \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
 
-gnuplot -e "plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
+gnuplot -e "set xlabel \"Time(s)\";set ylabel \"bit/s\";plot \"modelDatalink_throughput_1_0.txt\" with lines title \"QoS 0 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_1_1.txt\" with lines title \"QoS 1 throughput from hub 1\", \"modelDatalink_goodput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 goodput to node $FIRST_NODE\", \"modelDatalink_throughput_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 throughput from first node\", \"modelDatalink_goodput_1_0.txt\" with lines title \"QoS 0 goodput to hub 1\", \"modelDatalink_throughput_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 throughput from first node\", \"modelDatalink_goodput_1_1.txt\" with lines title \"QoS 1 goodput to hub 1\" ; pause -1"
 
 for (( j=0; j<$NUM_FID; j++ ))
 do
@@ -414,9 +414,9 @@ then
 	gnuplot gnuplotRLZoom$NUM_FID\.in
 fi
 # Interactive Plot
-gnuplot -e "plot \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
+gnuplot -e "set xlabel \"Time(s)\";set ylabel \"Time(s)\";plot \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
 
-# gnuplot -e "plot \"modelDatalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"modelDatalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\", \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
+# gnuplot -e "set xlabel \"Time(s)\";set ylabel \"Time(s)\";plot \"modelDatalink_delay_$FIRST_NODE\_0.txt\" with lines title \"QoS 0 delay to first node\", \"modelDatalink_delay_$FIRST_NODE\_1.txt\" with lines title \"QoS 1 delay to first node\", \"modelDatalink_delay_1_0.txt\" with lines title \"QoS 0 delay to hub 1\", \"modelDatalink_delay_1_1.txt\" with lines title \"QoS 1 delay to hub 1\" ; pause -1"
 
 NUM_LINES0=`cat modelDatalink_delay_1\_0.txt | wc -l`
 NUM_LINES1=`cat modelDatalink_delay_1\_1.txt | wc -l`

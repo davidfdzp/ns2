@@ -9,13 +9,17 @@ if { $argc !=13 } {
 	puts stderr {usage: ns modelDatalink.tcl <RLC kbps> <FLC kbps> <RL UDP rate packets/s> <RL TCP rate packets/s> <FL UDP rate packets/s> <FL TCP rate packets/s> <RL message size> <FL message size> <no_terminals> <NbrRLC> <NbrFLC> <RL one-way delay ms> <FL one-way delay ms> }
 	puts stderr {e.g.:} 
 	puts stderr {ns modelDatalink.tcl 144 272 25 0 0 0 463 463 1 1 1 850 270}
-	puts stderr {ns modelDatalink.tcl 128 512 0 0 0 0 0 0 1 1 1 5 5}
+	puts stderr {ns modelDatalink.tcl 128 512 0 1 0 0 0 0 1 1 1 5 5}
+	puts stderr {ns modelDatalink.tcl 128 512 20 0 80 0 800 800 1 1 1 5 5}
+	puts stderr {ns modelDatalink.tcl 128 512 400 0 1600 0 40 40 1 1 1 5 5}
 	exit 1
 }
 
 set testing            0
 
 set num_pkts 10000
+
+set fraction 0.1
 
 set tx_capacity_per_RLC_kb [lindex $argv 0]
 set tx_capacity_per_FLC_kb [lindex $argv 1]
@@ -81,7 +85,11 @@ set rl_bdp_factor 3
 set fl_bdp_factor 1
 
 # QoS and CoS configuration
+# set set_prio 0
 set set_prio 1
+# set set_fid 0
+set set_fid 1
+
 # Single CoS setup (all Best Effort)
 # set ping_prio 0
 set ping_prio 0
@@ -100,8 +108,10 @@ set qos3(deadline) 1.0
 # set qos3(deadline) [expr 1e-3*($tx_latency_per_FLC_ms + $tx_latency_per_RLC_ms)]
 
 set finish_margin 10.0
-
-set traffic_duration $tcp_duration
+set traffic_duration 0.0
+if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0} {
+	set traffic_duration $tcp_duration
+}
 if {$rl_UDP_packets_rate > 0 } {
 	set rl_udp_traffic_duration [expr $num_pkts / $rl_UDP_packets_rate ]
 	set traffic_duration $rl_udp_traffic_duration
@@ -162,18 +172,20 @@ if { $rl_UDP_packets_rate > 0 } {
 	puts "Service rate per RL carrier (mu) UDP packets/s: $rl_service_rate"
 	set rl_rho [expr 1.0*$rl_UDP_packets_rate/($rl_service_rate*$NbrRLC)]
 	puts "RL carrier occupation %: [expr 100*$rl_rho]"
-	set rl_tq [expr $rl_rho/(2*$rl_service_rate*(1-$rl_rho))]
-	puts "RL expected (M/D/1 model) average queueing time (s): $rl_tq"
-	set rl_tq95 [expr log(100/(100-95.0))*$rl_tq]
-	puts "RL expected (M/D/1 model) percentil 95 of queueing time (s): $rl_tq95"
-	set rl_tq999 [expr log(100/(100-99.9))*$rl_tq]
-	puts "RL expected (M/D/1 model) percentil 99.9 of queueing time (s): $rl_tq999"
-	set rl_td [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq]
-	puts "RL expected (M/D/1 model) average one-way delay (s): $rl_td"
-	set rl_td95 [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq95]
-	puts "RL expected (M/D/1 model) percentil 95 one-way delay (s): $rl_td95"
-	set rl_td999 [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq999]
-	puts "RL expected (M/D/1 model) percentil 99.9 one-way delay (s): $rl_td999"
+	if {$rl_rho < 1} {
+		set rl_tq [expr $rl_rho/(2*$rl_service_rate*(1-$rl_rho))]
+		puts "RL expected (M/D/1 model) average queueing time (s): $rl_tq"
+		set rl_tq95 [expr log(100/(100-95.0))*$rl_tq]
+		puts "RL expected (M/D/1 model) percentil 95 of queueing time (s): $rl_tq95"
+		set rl_tq999 [expr log(100/(100-99.9))*$rl_tq]
+		puts "RL expected (M/D/1 model) percentil 99.9 of queueing time (s): $rl_tq999"
+		set rl_td [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq]
+		puts "RL expected (M/D/1 model) average one-way delay (s): $rl_td"
+		set rl_td95 [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq95]
+		puts "RL expected (M/D/1 model) percentil 95 one-way delay (s): $rl_td95"
+		set rl_td999 [expr 1e-3*$delayRLms + 1/$rl_service_rate + $rl_tq999]
+		puts "RL expected (M/D/1 model) percentil 99.9 one-way delay (s): $rl_td999"
+	}
 	puts "RL UDP traffic duration for $num_pkts packets (s): $rl_udp_traffic_duration"
 }
 if { $fl_UDP_packets_rate > 0 } {
@@ -182,18 +194,20 @@ if { $fl_UDP_packets_rate > 0 } {
 	puts "Service rate per FL carrier (mu) UDP packets/s: $fl_service_rate"
 	set fl_rho [expr 1.0*$fl_UDP_packets_rate/($fl_service_rate*$NbrFLC)]
 	puts "FL carrier occupation %: [expr 100*$fl_rho]"
-	set fl_tq [expr $fl_rho/(2*$fl_service_rate*(1-$fl_rho))]
-	puts "FL expected (M/D/1 model) average queueing time (s): $fl_tq"
-	set fl_tq95 [expr log(100/(100-95.0))*$fl_tq]
-	puts "FL expected (M/D/1 model) percentil 95 of queueing time (s): $fl_tq95"
-	set fl_tq999 [expr log(100/(100-99.9))*$fl_tq]
-	puts "FL expected (M/D/1 model) percentil 99.9 of queueing time (s): $fl_tq999"
-	set fl_td [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq]
-	puts "FL expected (M/D/1 model) average one-way delay (s): $fl_td"
-	set fl_td95 [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq95]
-	puts "FL expected (M/D/1 model) percentil 95 one-way delay (s): $fl_td95"
-	set fl_td999 [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq999]
-	puts "FL expected (M/D/1 model) percentil 99.9 one-way delay (s): $fl_td999"
+	if {$fl_rho < 1} {
+		set fl_tq [expr $fl_rho/(2*$fl_service_rate*(1-$fl_rho))]
+		puts "FL expected (M/D/1 model) average queueing time (s): $fl_tq"
+		set fl_tq95 [expr log(100/(100-95.0))*$fl_tq]
+		puts "FL expected (M/D/1 model) percentil 95 of queueing time (s): $fl_tq95"
+		set fl_tq999 [expr log(100/(100-99.9))*$fl_tq]
+		puts "FL expected (M/D/1 model) percentil 99.9 of queueing time (s): $fl_tq999"
+		set fl_td [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq]
+		puts "FL expected (M/D/1 model) average one-way delay (s): $fl_td"
+		set fl_td95 [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq95]
+		puts "FL expected (M/D/1 model) percentil 95 one-way delay (s): $fl_td95"
+		set fl_td999 [expr 1e-3*$delayFLms + 1/$fl_service_rate + $fl_tq999]
+		puts "FL expected (M/D/1 model) percentil 99.9 one-way delay (s): $fl_td999"
+	}
 	puts "FL UDP traffic duration for $num_pkts packets (s): $fl_udp_traffic_duration"
 }
 if { $rl_TCP_packets_rate > 0 } {
@@ -220,15 +234,126 @@ $ns color 1 Red
 # set udp_fid 0
 # Single CoS setup (all Best Effort)
 set udp_fid 1
-set tcp_fid 0
+set tcp_fid 1
+set ack_fid 0
 # In order to make plots look good do some pings with the same fid you are plotting just after the flow end
-set ping_fid 0
+set ping_fid 1
 
 # Full tracing can increase the runtime 10-fold: http://intronetworks.cs.luc.edu/current/html/ns2.html
 set f [open modelDatalink.tr w]
 $ns trace-all $f
 set nf [open modelDatalink.nam w]
 $ns namtrace-all $nf
+
+# UDP CBR Traffic
+
+proc new-rl-udpCBR_custom { i k t msg_rate msg_size prio fid duration} {
+	global ns rludpCBR h n mtu
+	global NbrFLC
+
+	set rludpCBR($i) [new Application/Traffic/CBR]
+	set null [new Agent/Null]
+	set udp [new Agent/UDP]
+
+	$rludpCBR($i) attach-agent $udp
+	$rludpCBR($i) set rate_ [expr $msg_rate*$msg_size*8]
+	$rludpCBR($i) set packetSize_ $msg_size
+	
+	$udp set index $i
+	$udp set fid_ $fid
+	$udp set prio_ $prio 
+	$udp set packetSize_ $mtu
+
+	set h_n [expr $i % $NbrFLC]
+
+	$ns attach-agent $n($k) $udp
+	$ns attach-agent $h($h_n) $null
+	$ns connect $udp $null
+
+	$ns at $t "$rludpCBR($i) start"
+	$ns at [expr $t + $duration] "$rludpCBR($i) stop"
+}
+
+proc new-rl-udpCBR { i k t } {
+	global ns rludpCBR h n udp_data_prio mtu udp_fid rl_UDP_packets_rate rl_msg_size
+	global NbrFLC rl_udp_traffic_duration
+	
+	set rludpCBR($i) [new Application/Traffic/CBR]
+	set null [new Agent/Null]
+	set udp [new Agent/UDP]
+
+	$rludpCBR($i) attach-agent $udp
+	$rludpCBR($i) set rate_ [expr $rl_UDP_packets_rate*$rl_msg_size*8]
+	$rludpCBR($i) set packetSize_ $rl_msg_size
+	
+	$udp set index $i
+	$udp set fid_ $udp_fid
+	$udp set prio_ $udp_data_prio 
+	$udp set packetSize_ $mtu
+
+	set h_n [expr $i % $NbrFLC]
+
+	$ns attach-agent $n($k) $udp
+	$ns attach-agent $h($h_n) $null	
+	$ns connect $udp $null
+
+	$ns at $t "$rludpCBR($i) start"
+	$ns at [expr $t + $rl_udp_traffic_duration] "$rludpCBR($i) stop"
+}
+
+proc new-fl-udpCBR_custom { i k t msg_rate msg_size prio fid duration} {
+	global ns fludpCBR h n mtu
+	global NbrFLC
+
+	set fludpCBR($i) [new Application/Traffic/CBR]
+	set null [new Agent/Null]
+	set udp [new Agent/UDP]
+
+	$fludpCBR($i) attach-agent $udp
+	$fludpCBR($i) set rate_ [expr $msg_rate*$msg_size*8]
+	$fludpCBR($i) set packetSize_ $msg_size
+	
+	$udp set index $i
+	$udp set fid_ $fid
+	$udp set prio_ $prio 
+	$udp set packetSize_ $mtu
+
+	set h_n [expr $i % $NbrFLC]
+
+	$ns attach-agent $h($h_n) $udp
+	$ns attach-agent $n($k) $null
+	$ns connect $udp $null
+
+	$ns at $t "$fludpCBR($i) start"
+	$ns at [expr $t + $duration] "$fludpCBR($i) stop"
+}
+
+proc new-fl-udpCBR { i k t } {
+	global ns fludpCBR h n udp_data_prio mtu udp_fid fl_UDP_packets_rate fl_msg_size
+	global NbrFLC fl_udp_traffic_duration
+	
+	set fludpCBR($i) [new Application/Traffic/CBR]
+	set null [new Agent/Null]
+	set udp [new Agent/UDP]
+
+	$fludpCBR($i) attach-agent $udp
+	$fludpCBR($i) set rate_ [expr $fl_UDP_packets_rate*$fl_msg_size*8]
+	$fludpCBR($i) set packetSize_ $fl_msg_size
+	
+	$udp set index $i
+	$udp set fid_ $udp_fid
+	$udp set prio_ $udp_data_prio 
+	$udp set packetSize_ $mtu
+
+	set h_n [expr $i % $NbrFLC]
+
+	$ns attach-agent $h($h_n) $udp
+	$ns attach-agent $n($k) $null		
+	$ns connect $udp $null
+
+	$ns at $t "$fludpCBR($i) start"
+	$ns at [expr $t + $fl_udp_traffic_duration] "$fludpCBR($i) stop"
+}
 
 # UDP Poisson traffic #########################################################
 
@@ -300,29 +425,29 @@ Agent/Ping instproc recv {from rtt} {
 	$from with round-trip-time $rtt ms."
 }
 
-proc new-pings { i k t } {
-	global ns ping h n num_cos ping_prio ping_pkt_size ping_fid
+proc new-pings { i k t fid prio } {
+	global ns ping h n num_cos ping_pkt_size
 	global NbrFLC
 
 	set ping(r$i) [new Agent/Ping]
 	$ping(r$i) set packetSize_ $ping_pkt_size
-	$ping(r$i) set fid_ $ping_fid
-	$ping(r$i) set prio_ $ping_prio
+	$ping(r$i) set fid_ $fid
+	$ping(r$i) set prio_ $prio
 	set h_n [expr $i % $NbrFLC]
 	$ns attach-agent $n($k) $ping(r$i)
 	$ns at $t "$ping(r$i) send"
 	
 	set ping(f$i) [new Agent/Ping]
 	$ping(f$i) set packetSize_ $ping_pkt_size
-	$ping(f$i) set fid_ $ping_fid
-	$ping(f$i) set prio_ $ping_prio
+	$ping(f$i) set fid_ $fid
+	$ping(f$i) set prio_ $prio
 	$ns attach-agent $h($h_n) $ping(f$i)
 	$ns connect $ping(f$i) $ping(r$i)
 }
 
 # Markovian on/off TCP traffic
 proc new-rl-tcp-exp { i k t } {
-	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global traffic_duration NbrFLC
 
 	set rs [new Agent/TCP/Linux]
@@ -381,6 +506,8 @@ proc new-rl-tcp-exp { i k t } {
 	set rsink [new Agent/TCPSink]
 	$rsink set set_prio_ $set_prio
 	$rsink set ack_prio_ $ack_prio
+	$rsink set set_fid_ $set_fid
+	$rsink set ack_fid_ $ack_fid
 	$ns attach-agent $h($h_n) $rsink
 	$ns connect $rs $rsink
 	set rltcpexp(s$i) [new Application/Traffic/Exponential]
@@ -397,7 +524,7 @@ proc new-rl-tcp-exp { i k t } {
 }
 
 proc new-fl-tcp-exp { i k t } {
-	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global traffic_duration NbrFLC
 	
 	set fs [new Agent/TCP/Linux]
@@ -413,6 +540,8 @@ proc new-fl-tcp-exp { i k t } {
 	set fsink [new Agent/TCPSink]
 	$fsink set set_prio_ $set_prio
 	$fsink set ack_prio_ $ack_prio
+	$fsink set set_fid_ $set_fid
+	$fsink set ack_fid_ $ack_fid
 	$ns attach-agent $n($k) $fsink
 	$ns connect $fs $fsink
 	set fltcpexp(s$i) [new Application/Traffic/Exponential]
@@ -429,7 +558,7 @@ proc new-fl-tcp-exp { i k t } {
 
 # Bulk TCP Poisson traffic
 proc new-rl-tcp-poisson { i k t } {
-	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global traffic_duration NbrFLC
 
 	set rs [new Agent/TCP/Linux]
@@ -488,6 +617,8 @@ proc new-rl-tcp-poisson { i k t } {
 	set rsink [new Agent/TCPSink]
 	$rsink set set_prio_ $set_prio
 	$rsink set ack_prio_ $ack_prio
+	$rsink set set_fid_ $set_fid
+	$rsink set ack_fid_ $ack_fid
 	$ns attach-agent $h($h_n) $rsink
 	$ns connect $rs $rsink
 	set rltcpexp(s$i) [new Application/Traffic/Exponential]
@@ -512,7 +643,7 @@ proc new-rl-tcp-poisson { i k t } {
 }
 
 proc new-fl-tcp-poisson { i k t } {
-	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global traffic_duration no_terminals NbrFLC
 	
 	set fs [new Agent/TCP/Linux]
@@ -527,6 +658,8 @@ proc new-fl-tcp-poisson { i k t } {
 	set fsink [new Agent/TCPSink]
 	$fsink set set_prio_ $set_prio
 	$fsink set ack_prio_ $ack_prio
+	$fsink set set_fid_ $set_fid
+	$fsink set ack_fid_ $ack_fid
 	$ns attach-agent $n($k) $fsink
 	$ns connect $fs $fsink
 	set fltcpexp(s$i) [new Application/Traffic/Exponential]
@@ -551,7 +684,7 @@ proc new-fl-tcp-poisson { i k t } {
 
 ## Bulk TCP traffic ##
 proc new-rl-tcp { i k t } {
-	global ns rltcp rlftp rsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns rltcp rlftp rsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global NbrFLC tcp_duration
 
 	set rltcp($rltcp(index)) [new Agent/TCP/Linux]
@@ -619,6 +752,8 @@ proc new-rl-tcp { i k t } {
 	set rsink($rltcp(index)) [new Agent/TCPSink]
 	$rsink($rltcp(index)) set set_prio_ $set_prio
 	$rsink($rltcp(index)) set ack_prio_ $ack_prio
+	$rsink($rltcp(index)) set set_fid_ $set_fid
+	$rsink($rltcp(index)) set ack_fid_ $ack_fid
 	$ns attach-agent $h($h_n) $rsink($rltcp(index))
 	$ns connect $rltcp($rltcp(index)) $rsink($rltcp(index))
 	set rlftp($rltcp(index)) [new Application/FTP]
@@ -629,7 +764,7 @@ proc new-rl-tcp { i k t } {
 }
 
 proc new-fl-tcp { i k t } {
-	global ns fltcp flftp fsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio
+	global ns fltcp flftp fsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
 	global no_terminals NbrFLC tcp_duration
 	
 	set fltcp($fltcp(index)) [new Agent/TCP/Linux]
@@ -653,6 +788,8 @@ proc new-fl-tcp { i k t } {
 	set fsink($fltcp(index)) [new Agent/TCPSink]
 	$fsink($fltcp(index)) set set_prio_ $set_prio
 	$fsink($fltcp(index)) set ack_prio_ $ack_prio
+	$fsink($fltcp(index)) set set_fid_ $set_fid
+	$fsink($fltcp(index)) set ack_fid_ $ack_fid
 	$ns attach-agent $n($k) $fsink($fltcp(index))
 	$ns connect $fltcp($fltcp(index)) $fsink($fltcp(index))
 	set flftp($fltcp(index)) [new Application/FTP]
@@ -1060,13 +1197,13 @@ proc finish-sim {} {
 }
 
 for {set i 0} {$i<$no_terminals} {incr i} {
-	# $ns at $start "new-pings $i $i"
+	# $ns at $start "new-pings $i $i $ping_fid $ping_prio"
 	# $ns at $start "new-rl-udpExpo $i $i"
 	# $ns at $start "new-rl-tcpExpo $i $i"
 	# for {set j 0} { $j < [expr $no_streams_term-1]} {incr j} {
 		# $ns at $start "new-rl-voip [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-voip [expr $i*$no_streams_term+$j] $i"
-		# $ns at $start "new-pings [expr $i*$no_streams_term+$j] $i"
+		# $ns at $start "new-pings [expr $i*$no_streams_term+$j] $i $ping_fid $ping_prio"
 		# $ns at $start "new-rl-tcp-poisson [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-tcp-poisson [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-tcp-exp [expr $i*$no_streams_term+$j] $i"
@@ -1083,46 +1220,102 @@ for {set i 0} {$i<$no_terminals} {incr i} {
 }
 
 set pingTime $currTime
-$ns at $start "new-pings 0 0 $pingTime"
+# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+$ns at $start "new-pings 0 0 $pingTime 0 46"
 set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 
-# TCP tests
-$ns at $start "new-fl-tcp 0 0 $currTime"
-# set currTime [expr $currTime + 5.0 + $tcp_duration]
-set currTime [expr $currTime + $tcp_duration/2]
-# set pingTime $currTime
-# $ns at $start "new-pings 0 0 $pingTime"
-# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
-
-# $ns at $start "new-rl-tcp 0 0 $currTime"
-# $ns at $start "new-fl-tcp 0 0 $currTime"
-# set currTime [expr $currTime + 5.0 + $tcp_duration]
-# set pingTime $currTime
-# $ns at $start "new-pings 0 0 $pingTime"
-# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
-
-$ns at $start "new-rl-tcp 0 0 $currTime"
-# set currTime [expr $currTime + 5.0 + $tcp_duration]
-set currTime [expr $currTime + 10.0 + $tcp_duration]
 set pingTime $currTime
-$ns at $start "new-pings 0 0 $pingTime"
+$ns at $start "new-pings 0 0 $pingTime 1 0"
 set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+
+# Initial TCP tests
+if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
+	$ns at $start "new-fl-tcp 0 0 $currTime"
+	# set currTime [expr $currTime + 5.0 + $tcp_duration]
+	set currTime [expr $currTime + $tcp_duration/2]
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
+	if {$set_fid > 0 } {
+#		if {$set_prio > 0 } {
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
+#		} else {
+#			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+#		}
+	}
+	# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+
+	# $ns at $start "new-rl-tcp 0 0 $currTime"
+	# $ns at $start "new-fl-tcp 0 0 $currTime"
+	# set currTime [expr $currTime + 5.0 + $tcp_duration]
+	# set pingTime $currTime
+	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+	# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+
+	$ns at $start "new-rl-tcp 0 0 $currTime"
+	# set currTime [expr $currTime + 5.0 + $tcp_duration]
+	set currTime [expr $currTime + $tcp_duration/2]
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
+	if {$set_fid > 0 } {
+#		if {$set_prio > 0 } {
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
+#		} else {
+#			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+#		}
+	}
+	set currTime [expr $currTime + 10.0 + $tcp_duration/2]
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
+	if {$set_fid > 0 } {
+		if {$set_prio > 0 } {
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
+		} else {
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+		}
+	}
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+}
 # End of TCP tests
 
 # UDP Expo Agents
-if {$rl_UDP_packets_rate > 0 } {
-	$ns at $start "new-rl-udpExpo 0 0 $currTime"
-	set currTime [expr $currTime + 5.0 + $rl_udp_traffic_duration]
+#if {$rl_UDP_packets_rate > 0 } {
+#	$ns at $start "new-rl-udpExpo 0 0 $currTime"
+#	set currTime [expr $currTime + 5.0 + $rl_udp_traffic_duration]
+#	set pingTime $currTime
+#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+#	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+#}
+
+#if {$fl_UDP_packets_rate > 0 } {
+#	$ns at $start "new-fl-udpExpo 0 0 $currTime"
+#	set currTime [expr $currTime + 5.0 + $fl_udp_traffic_duration]
+#	set pingTime $currTime
+#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+#	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+#}
+
+# UDP CBR Agents
+if {$fl_UDP_packets_rate > 0 } {
+	$ns at $start "new-fl-udpCBR 0 0 $currTime"
+	$ns at $start "new-fl-udpCBR_custom 0 0 $currTime [expr $fraction*1000*$tx_capacity_per_FLC_kb/(40*8)] 40 46 0 $fl_udp_traffic_duration"
+	set currTime [expr $currTime + 5.0 + $fl_udp_traffic_duration]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime"
+	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio"
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime 0 46"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 }
 
-if {$fl_UDP_packets_rate > 0 } {
-	$ns at $start "new-fl-udpExpo 0 0 $currTime"
-	set currTime [expr $currTime + 5.0 + $fl_udp_traffic_duration]
+if {$rl_UDP_packets_rate > 0 } {
+	$ns at $start "new-rl-udpCBR 0 0 $currTime"
+	$ns at $start "new-rl-udpCBR_custom 0 0 $currTime [expr $fraction*1000*$tx_capacity_per_RLC_kb/(40*8)] 40 46 0 $rl_udp_traffic_duration"
+	set currTime [expr $currTime + 5.0 + $rl_udp_traffic_duration]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime"
+	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio"
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime 0 46"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 }
 
@@ -1139,11 +1332,12 @@ if {$fl_UDP_packets_rate > 0 } {
 set fpingstime1 [expr $currTime + $finish_margin + 1.0]
 set rpingstime1 [expr $fpingstime1 + 1.0]
 # set pingTime $rpingstime1
-# $ns at $start "new-pings 0 0 $pingTime"
+# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
 
 set duration [expr $rpingstime1 + $finish_margin]
 
 $ns at $duration "finish-sim"
 
 $ns run
+
 
