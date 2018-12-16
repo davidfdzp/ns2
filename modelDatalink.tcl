@@ -81,6 +81,10 @@ set ack_size 52
 
 set tcp_duration 240
 
+# 125 = 1 kbyte (1000 bytes) / 8 bytes
+set max_bytes_rx_per_tcp_RL [expr $tcp_duration*125*$tx_capacity_per_RLC_kb]
+set max_bytes_rx_per_tcp_FL [expr $tcp_duration*125*$tx_capacity_per_FLC_kb]
+
 set rl_bdp_factor 3
 set fl_bdp_factor 1
 
@@ -1153,6 +1157,7 @@ $qh(0) printPHBTable
 proc finish-sim {} {
 	global ns f nf rludpExpo fludpExpo no_terminals NbrRLC NbrFLC num_cos rltcp fltcp rsink fsink tcp_duration
 	global last_web_done web_duration min_web_duration max_web_duration num_webs web_duration_filename
+	global max_bytes_rx_per_tcp_RL max_bytes_rx_per_tcp_FL
 	
 	$ns flush-trace
 	close $nf
@@ -1164,7 +1169,7 @@ proc finish-sim {} {
 		set ACKedRL($i) [$rsink($i) set bytes_]
 		set reTxRL($i) [$rltcp($i) set nrexmitpack_]
 		puts "RL TCP $i Rx $ACKedRL($i) bytes, final ack: $lastACKrltcp($i), final seq num: $lastSEQrltcp($i), ReTx Pkts: $reTxRL($i)"
-		puts "RL TCP $i estimated goodput: [expr $ACKedRL($i)*8/(1000*$tcp_duration)] kbit/s"
+		puts "RL TCP $i link utilization during $tcp_duration s (%): [expr 100.0*$ACKedRL($i)/$max_bytes_rx_per_tcp_RL]"
 	}
 
 	for {set i 0} {$i<$fltcp(index)} {incr i} {
@@ -1173,7 +1178,7 @@ proc finish-sim {} {
 		set ACKedFL($i) [$fsink($i) set bytes_]
 		set reTxFL($i) [$fltcp($i) set nrexmitpack_]
 		puts "FL TCP $i Rx $ACKedFL($i) bytes, final ack: $lastACKfltcp($i), final seq num: $lastSEQfltcp($i), ReTx Pkts: $reTxFL($i)"
-		puts "FL TCP $i estimated goodput: [expr $ACKedFL($i)*8/(1000*$tcp_duration)] kbit/s"
+		puts "FL TCP $i link utilization during $tcp_duration s (%): [expr 100.0*$ACKedFL($i)/$max_bytes_rx_per_tcp_FL]"
 	}
 	
 	# Open the filename for writing
