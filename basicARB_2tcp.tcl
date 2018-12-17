@@ -44,13 +44,21 @@ set max_bytes_rx_per_tcp_B_R [expr $tcp_duration*125*$tx_capacity_B_R_kb]
 puts "Simulating A---R---B with bottleneck R-B equal to $tx_capacity_R_B_kb kbit/s with $delay_R_B_ms ms delay and B-R with $tx_capacity_B_R_kb kbit/s and $delay_R_B_ms ms delay."
 
 # Compute queue sizes according to the BDP rule
-set queue_size_bytes [expr ($tx_capacity_R_B_kb*$delay_R_B_ms + $tx_capacity_B_R_kb*$delay_B_R_ms)/8]
-set queue_size_packets [expr $queue_size_bytes/$ack_size]
-puts "Computed queue size [expr $queue_size_bytes/1000] kbytes and $queue_size_packets packets, assuming $ack_size bytes ACKs."
+set queue_size_bytes_R_B [expr $tx_capacity_R_B_kb*($delay_R_B_ms + $delay_B_R_ms)/8]
+set queue_size_bytes_B_R [expr $tx_capacity_B_R_kb*($delay_R_B_ms + $delay_B_R_ms)/8]
+set queue_size_packets_R_B [expr $queue_size_bytes_R_B/$ack_size]
+set queue_size_packets_B_R [expr $queue_size_bytes_B_R/$ack_size]
+puts "Computed upload queue size R-->B [expr $queue_size_bytes_R_B/1000] kbytes and $queue_size_packets_R_B packets, assuming $ack_size bytes ACKs."
+puts "Computed download queue size R<--B [expr $queue_size_bytes_B_R/1000] kbytes and $queue_size_packets_B_R packets, assuming $ack_size bytes ACKs."
 
-if { $queue_size_packets < $tcp_initial_window_size } {
-	set queue_size_packets $tcp_initial_window_size
-	puts "Minimum queue size set to TCP initial window size in packets, at least, i.e. $queue_size_packets"
+if { $queue_size_packets_R_B < $tcp_initial_window_size } {
+	set queue_size_packets_R_B $tcp_initial_window_size
+	puts "Minimum queue size R-->B set to TCP initial window size in packets, at least, i.e. $queue_size_packets_R_B"
+}
+
+if { $queue_size_packets_B_R < $tcp_initial_window_size } {
+	set queue_size_packets_B_R $tcp_initial_window_size
+	puts "Minimum queue size R<--B set to TCP initial window size in packets, at least, i.e. $queue_size_packets_B_R"
 }
 
 #Create a simulator object
@@ -114,8 +122,8 @@ $ns simplex-link $R $B $tx_capacity_R_B $delay_R_B DropTail
 $ns simplex-link $B $R $tx_capacity_B_R $delay_B_R DropTail
 
 # The queue sizes at $R are the computed BDP, with at minimum of three packets
-$ns queue-limit $R $B $queue_size_packets
-$ns queue-limit $B $R $queue_size_packets
+$ns queue-limit $R $B $queue_size_packets_R_B
+$ns queue-limit $B $R $queue_size_packets_B_R
 
 # some hints for nam
 # color packets of flow 0 red
