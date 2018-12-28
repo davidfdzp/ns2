@@ -2,13 +2,14 @@
 # http://intronetworks.cs.luc.edu/current/html/ns2.html#single-sender-throughput-experiments
 # Link from A to R is assumed to be LAN, i.e. symmetric 1000 Mbit/s, 10 ms delay
 # Link from R to B is assumed to be WAN with a certain bandwidth and delay that can be asymetric.
-# First one upload TCP is done, then one TCP download, then simultaneous
+# First one ping is done, then one upload TCP is done, then one TCP download, then simultaneous TCP
 
 if { $argc != 4 } {
 	puts stderr {usage: ns basicARB_2tcp.tcl <R-B kbit/s> <B-R kbit/s> <R-B one-way delay ms> <B-R one-way delay ms> }
 	puts stderr {e.g.:} 
 	puts stderr {ns basicARB_2tcp.tcl 800 800 50 50}
-	exit 1
+	puts stderr {ns basicARB_2tcp.tcl 128 512 5 5}
+	exit 1m
 }
 
 set tx_capacity_R_B_kb [lindex $argv 0]
@@ -21,17 +22,35 @@ set tx_capacity_B_R [expr $tx_capacity_B_R_kb]kb
 set delay_R_B [expr $delay_R_B_ms]ms
 set delay_B_R [expr $delay_B_R_ms]ms
 
+set lan_delay_ms 1.0
+# set lan_delay_ms 10.0
+# set lan_delay_ms 50.0
+set lan_delay [expr $lan_delay_ms]ms
+
+set lan_capacity_Mb 1000
+# set lan_capacity_Mb 10
+set lan_capacity [expr $lan_capacity_Mb]Mb
+
+set ping_pkt_size 64
+set ping_fid 100
+
 set mtu 1500
 # set mtu 1000
-# set ack_size 52
+set ack_size 52
 # set ack_size 40
 # set ack_size $mtu
 # set ack_size [expr $mtu/3]
-set ack_size [expr $mtu/5]
+# set ack_size [expr $mtu/5]
 
+set tcp_start [expr 1e-3*($delay_R_B_ms+2*$lan_delay_ms+$delay_B_R_ms)+1.0]
+
+# RFC 3390
+# set tcp_initial_window_size 4
+# 10 TCP packets are around 10 KB, which is the minimum queue size acceptable too. See also RFC 6928
 set tcp_initial_window_size 10
+# www.muyinternet.com/2010/06/28/google-propone-un-cambio-en-el-principal-protocolo-de-internet 
+# set tcp_initial_window_size 15
 set tcp_window_size 65000
-# 10 TCP packets are around 10 KB, which is the minimum queue size acceptable too
 
 # set tcp_duration 1000
 set tcp_duration 60
@@ -41,24 +60,40 @@ set time_margin [expr $tcp_duration*4]
 set max_bytes_rx_per_tcp_R_B [expr $tcp_duration*125*$tx_capacity_R_B_kb]
 set max_bytes_rx_per_tcp_B_R [expr $tcp_duration*125*$tx_capacity_B_R_kb]
 
-puts "Simulating A---R---B with bottleneck R-B equal to $tx_capacity_R_B_kb kbit/s with $delay_R_B_ms ms delay and B-R with $tx_capacity_B_R_kb kbit/s and $delay_R_B_ms ms delay."
+set min_queue_size_packets [expr 5*$tcp_initial_window_size]
+
+puts "Simulating A---R---B with A---R LAN at $lan_capacity with latency $lan_delay, bottleneck R--->B equal to $tx_capacity_R_B_kb kbit/s with $delay_R_B_ms ms delay and R<---B with $tx_capacity_B_R_kb kbit/s and $delay_R_B_ms ms delay."
 
 # Compute queue sizes according to the BDP rule
-set queue_size_bytes_R_B [expr $tx_capacity_R_B_kb*($delay_R_B_ms + $delay_B_R_ms)/8]
-set queue_size_bytes_B_R [expr $tx_capacity_B_R_kb*($delay_R_B_ms + $delay_B_R_ms)/8]
-set queue_size_packets_R_B [expr $queue_size_bytes_R_B/$ack_size]
-set queue_size_packets_B_R [expr $queue_size_bytes_B_R/$ack_size]
-puts "Computed upload queue size R-->B [expr $queue_size_bytes_R_B/1000] kbytes and $queue_size_packets_R_B packets, assuming $ack_size bytes ACKs."
-puts "Computed download queue size R<--B [expr $queue_size_bytes_B_R/1000] kbytes and $queue_size_packets_B_R packets, assuming $ack_size bytes ACKs."
-
-if { $queue_size_packets_R_B < $tcp_initial_window_size } {
-	set queue_size_packets_R_B $tcp_initial_window_size
-	puts "Minimum queue size R-->B set to TCP initial window size in packets, at least, i.e. $queue_size_packets_R_B"
+# set queue_size_factor_R_B 3
+set queue_size_factor_R_B 1
+set queue_size_factor_B_R 1
+set queue_size_bytes_R_B [expr ceil($queue_size_factor_R_B*$tx_capacity_R_B_kb*($delay_R_B_ms + $delay_B_R_ms)/8)]
+set queue_size_bytes_B_R [expr ceil($queue_size_factor_B_R*$tx_capacity_B_R_kb*($delay_R_B_ms + $delay_B_R_ms)/8)]
+set queue_size_packets_R_B [expr ceil($queue_size_bytes_R_B/$ack_size)]
+set queue_size_packets_B_R [expr ceil($queue_size_bytes_B_R/$ack_size)]
+# set delay_ms [expr $delay_R_B_ms + $delay_B_R_ms]
+set delay_ms 0.0
+if { [expr 2*$lan_delay_ms] > $delay_ms } {
+	set delay_ms [expr 2*$lan_delay_ms]	
+}
+set qlim [expr ceil($lan_capacity_Mb*1e3*$delay_ms/(8*$ack_size))]
+if { $qlim < $min_queue_size_packets } {
+	set qlim $min_queue_size_packets
+	puts "Minimum queue size A<--->R set to $min_queue_size_packets packets"
 }
 
-if { $queue_size_packets_B_R < $tcp_initial_window_size } {
-	set queue_size_packets_B_R $tcp_initial_window_size
-	puts "Minimum queue size R<--B set to TCP initial window size in packets, at least, i.e. $queue_size_packets_B_R"
+puts "Computed upload queue size R-->B [expr ceil($queue_size_bytes_R_B/1000)] kbytes and $queue_size_packets_R_B packets, assuming $ack_size bytes ACKs."
+puts "Computed download queue size R<--B [expr ceil($queue_size_bytes_B_R/1000)] kbytes and $queue_size_packets_B_R packets, assuming $ack_size bytes ACKs."
+
+if { $queue_size_packets_R_B < $min_queue_size_packets } {
+	set queue_size_packets_R_B $min_queue_size_packets
+	puts "Minimum queue size R-->B set to $min_queue_size_packets packets"
+}
+
+if { $queue_size_packets_B_R < $min_queue_size_packets } {
+	set queue_size_packets_B_R $min_queue_size_packets
+	puts "Minimum queue size R<--B set to $min_queue_size_packets packets"
 }
 
 #Create a simulator object
@@ -69,6 +104,14 @@ set nf [open basicARB_2tcp.nam w]
 $ns namtrace-all $nf
 set f [open basicARB_2tcp.tr w]
 $ns trace-all $f
+
+#Define a 'recv' function for the class 'Agent/Ping'
+Agent/Ping instproc recv {from rtt} {
+	global ns
+	$self instvar node_
+	puts "t=[$ns now]: node [$node_ id] received ping answer from \
+	$from with round-trip-time $rtt ms."
+}
 
 #Define a 'finish' procedure
 proc finish {} {
@@ -102,9 +145,9 @@ proc finish {} {
         puts stdout "final ack: $lastACK, final seq num: $lastSEQ, $ACKed bytes transferred, ReTx Pkts: $reTx"
 	puts "TCP download link utilization during $tcp_duration s (%): [expr 100.0*$ACKed/$max_bytes_rx_per_tcp_B_R]"
 	# exec perl tcp_goodput.pl basicARB.tr 0 1
-#	exec ./basicARB.sh
+#	exec ./basicARB_2tcp.sh
 #	puts "Launching NAM..."
-#	exec nam basicARB.nam &
+#	exec nam basicARB_2tcp.nam &
 	puts "Finished"
         exit 0
 }
@@ -115,13 +158,15 @@ set R [$ns node]
 set B [$ns node]
 
 #Create a duplex link between the nodes A and R
-# $ns duplex-link $A $R 1000Mb 10ms DropTail
-$ns duplex-link $A $R 10Mb 50ms DropTail
+$ns duplex-link $A $R $lan_capacity $lan_delay DropTail
+$ns queue-limit $A $R $qlim
+$ns queue-limit $R $A $qlim
+
 #Create simplex links between R and B
 $ns simplex-link $R $B $tx_capacity_R_B $delay_R_B DropTail
 $ns simplex-link $B $R $tx_capacity_B_R $delay_B_R DropTail
 
-# The queue sizes at $R are the computed BDP, with at minimum of three packets
+# The queue sizes at $R are the computed BDP, with at minimum
 $ns queue-limit $R $B $queue_size_packets_R_B
 $ns queue-limit $B $R $queue_size_packets_B_R
 
@@ -131,6 +176,19 @@ $ns color 0 Red
 $ns duplex-link-op $A $R orient right
 $ns duplex-link-op $R $B orient right
 $ns duplex-link-op $R $B queuePos 0.5
+
+# Create ping agents
+set pingA [new Agent/Ping]
+$pingA set packetSize_ $ping_pkt_size
+$pingA set fid_ $ping_fid
+$ns attach-agent $A $pingA
+$ns at 0.0 "$pingA send"
+
+set pingB [new Agent/Ping]
+$pingB set packetSize_ $ping_pkt_size
+$pingB set fid_ $ping_fid
+$ns attach-agent $B $pingB
+$ns connect $pingA $pingB
 
 # Create a TCP sending agent and attach it to A
 # set tcp0 [new Agent/TCP/Reno]
@@ -143,6 +201,11 @@ $tcp0 set tcpip_base_hdr_size_ 40
 $tcp0 set segsize_ [expr $mtu-[$tcp0 set tcpip_base_hdr_size_]]
 $tcp0 set packetSize_ [expr $mtu-[$tcp0 set tcpip_base_hdr_size_]]
 $ns attach-agent $A $tcp0
+
+puts "TCP slow start threshold: [$tcp0 set window_]"
+puts "TCP tick: [$tcp0 set tcpTick_]"
+puts "TCP initial window size: [$tcp0 set windowInit_]"
+puts "TCP maximum congestion window size: [$tcp0 set maxcwnd_]"
 
 # Let's trace some variables
 # $tcp0 attach $f
@@ -161,8 +224,12 @@ $ns connect $tcp0 $end0
 #Schedule the connection data flow; start sending data at T=0, stop at T=tcp_duration
 set myftp0 [new Application/FTP]
 $myftp0 attach-agent $tcp0
-$ns at 0.0 "$myftp0 start"
-$ns at $tcp_duration "$myftp0 stop"
+$ns at $tcp_start "$myftp0 start"
+$ns at [expr $tcp_start + $tcp_duration] "$myftp0 stop"
+$ns at $tcp_duration "$pingA set fid_ 0"
+$ns at $tcp_duration "$pingB set fid_ 0"
+$ns at [expr $tcp_start + $tcp_duration + $time_margin/40] "$pingA send"
+# $ns at [expr $tcp_start + $tcp_duration + 2.0] "$pingA send"
 
 # Create a TCP sending agent and attach it to B
 # set tcp1 [new Agent/TCP/Reno]
@@ -193,8 +260,14 @@ $ns connect $tcp1 $end1
 #Schedule the connection data flow; start at tcp_duration plus 15 s margin, stop tcp_duration seconds afterwards
 set myftp1 [new Application/FTP]
 $myftp1 attach-agent $tcp1
-$ns at [expr $tcp_duration + $time_margin] "$myftp1 start"
-$ns at [expr $tcp_duration*2 + $time_margin] "$myftp1 stop"
+$ns at [expr $tcp_start + $tcp_duration + $time_margin] "$myftp1 start"
+$ns at [expr $tcp_start + $tcp_duration*2 + $time_margin] "$myftp1 stop"
+set currTime [expr $tcp_duration*2 + $time_margin]
+$ns at $currTime "$pingA set fid_ 1"
+$ns at $currTime "$pingB set fid_ 1"
+$ns at [expr $tcp_start + $tcp_duration*2 + $time_margin + $time_margin/40] "$pingB send"
+# $ns at [expr $tcp_start + $tcp_duration*2 + $time_margin + 2.0] "$pingB send"
+# $ns at [expr $tcp_start + $tcp_duration*2 + $time_margin + $time_margin/3] "$pingA send"
 
 # Create a TCP sending agent and attach it to A
 # set tcp2 [new Agent/TCP/Reno]
@@ -226,8 +299,8 @@ $ns connect $tcp2 $end2
 #Schedule the connection data flow; start sending data at start and finish at stop
 set myftp2 [new Application/FTP]
 $myftp2 attach-agent $tcp2
-$ns at [expr 2*($tcp_duration + $time_margin)] "$myftp2 start"
-$ns at [expr 3*$tcp_duration + 2*$time_margin] "$myftp2 stop"
+$ns at [expr $tcp_start + 2*($tcp_duration + $time_margin)] "$myftp2 start"
+$ns at [expr $tcp_start + 3*$tcp_duration + 2*$time_margin] "$myftp2 stop"
 
 # Create a TCP sending agent and attach it to B
 # set tcp3 [new Agent/TCP/Reno]
@@ -259,10 +332,19 @@ $ns connect $tcp3 $end3
 #Schedule the connection data flow; start at tcp_duration plus margin, stop tcp_duration seconds afterwards
 set myftp3 [new Application/FTP]
 $myftp3 attach-agent $tcp3
-$ns at [expr 2*($tcp_duration + $time_margin)] "$myftp3 start"
-$ns at [expr 3*$tcp_duration + 2*$time_margin] "$myftp3 stop"
+$ns at [expr $tcp_start + 2*($tcp_duration + $time_margin)] "$myftp3 start"
+$ns at [expr $tcp_start + 3*$tcp_duration + 2*$time_margin] "$myftp3 stop"
 
-$ns at [expr 3*($tcp_duration+$time_margin)] "finish"
+# Do a final ping of MTU size
+set currTime [expr $tcp_start + 3*($tcp_duration+$time_margin)]
+$ns at $currTime "$pingA set fid_ 100"
+$ns at $currTime "$pingB set fid_ 100"
+$ns at $currTime "$pingA set packetSize_ $mtu"
+$ns at $currTime "$pingB set packetSize_ $mtu"
+set currTime [expr $currTime + 1.0]
+$ns at $currTime "$pingA send"
+
+$ns at [expr $currTime + 10.0] "finish"
 
 #Run the simulation
 $ns run

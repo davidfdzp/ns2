@@ -1,8 +1,15 @@
 #!$HOME/ns-allinone-2.35/ns-2.35/ns
 # modelDatalink.tcl - based on tg.tcl example and ERG-UoA Aberdeen (UK), May 2008 VoIP and web traffic generation examples
+# Remote---Access---Sat---Hub topology, where:
+# there is one Sat node, but <no_terminals> Remote nodes, distributed into NbrRLC Access nodes and connected to NbrFLC Hubs (each Remote)
+# Remote<--->Access connection is LAN (on board net)
+# Each Access--->Sat connection is at <RLC kbps> with <RL one-way delay ms> latency
+# Each Access<---Sat conection is LAN (on board net)
+# Each Sat<---Hub connection is at <FLC kbps> with <FL one-way delay ms> latency
+# Each Sat--->Hub connection is LAN (on board net)
 # D. Fernández - November 2018
 # Results: PLR and one-way delay statistics (avg delay, TD50, TD95 and TD99.9) in function of arrival rate of messages
-# Testing the effect of TCP ACKs prioritization
+# Allows testing the effect of TCP ACKs prioritization
 #
 
 if { $argc !=13 } {
@@ -40,25 +47,36 @@ set delayFLms [lindex $argv 12]
 set bwRL_kb [expr [lindex $argv 0] * $NbrRLC]
 set bwFL_kb [expr [lindex $argv 1] * $NbrFLC]
 
+set onboard_net_delay_ms 1.0
+# set onboard_net_delay_ms 10.0
+set onboard_net_delay [expr $onboard_net_delay_ms]ms
+set onboard_net_capacity_Mb	1000
+set onboard_net_capacity      [expr $onboard_net_capacity_Mb]Mb
+
 set tx_capacity_per_RLC [expr $tx_capacity_per_RLC_kb]kb
 set tx_capacity_per_FLC [expr $tx_capacity_per_FLC_kb]kb
-set tx_latency_per_FLC_ms [expr $delayFLms / 2]
-set rx_latency_per_FLC [expr $delayFLms / 2]ms
-set tx_latency_per_RLC_ms [expr $delayRLms / 2]
-set rx_latency_per_RLC [expr $delayRLms / 2]ms
+
+set tx_latency_per_FLC_ms [expr $delayFLms]
+# set rx_latency_per_FLC $onboard_net_delay
+set rx_latency_per_FLC 0.1ms
+# set tx_latency_per_FLC_ms [expr $delayFLms / 2]
+# set rx_latency_per_FLC [expr $delayFLms / 2]ms
+
+set tx_latency_per_RLC_ms [expr $delayRLms ]
+# set rx_latency_per_RLC $onboard_net_delay
+set rx_latency_per_RLC 0.1ms
+# set tx_latency_per_RLC_ms [expr $delayRLms / 2]
+# set rx_latency_per_RLC [expr $delayRLms / 2]ms
+
 set tx_latency_per_FLC [expr $tx_latency_per_FLC_ms]ms
 set tx_latency_per_RLC [expr $tx_latency_per_RLC_ms]ms
 
 set ping_pkt_size 64
 
-set onboard_net_delay_ms 10.0
-set onboard_net_delay [expr $onboard_net_delay_ms]ms
-set onboard_net_capacity_Mb	1000
-set onboard_net_capacity      [expr $onboard_net_capacity_Mb]Mb
-
 # Rx capacity per FLC = bwRL_kb / NbrFL
 # set rx_capacity_per_FLC [expr ceil(1.0 * $bwRL_kb / $NbrFLC)]kb
 # set rx_capacity_per_RLC $tx_capacity_per_FLC
+
 # Satellites are not store and forward: almost unlimited capacity hereafter
 set rx_capacity_per_FLC_Mb $onboard_net_capacity_Mb
 set rx_capacity_per_FLC [expr $rx_capacity_per_FLC_Mb]Mb
@@ -81,8 +99,16 @@ set fl_ber $ber
 # set fl_ber [expr 1-pow((1-$per),[expr 1/($fl_cell_size*8.0)])]
 set mtu 1500
 set ack_size 52
+# set ack_size $mtu/5
 
-set tcp_duration 240
+set tcp_duration 60
+# set tcp_duration 240
+
+# RFC 6928
+set tcp_init_window 10
+
+# set tcp_window_size 100
+set tcp_window_size 65000
 
 # 125 = 1 kbyte (1000 bytes) / 8 bytes
 set max_bytes_rx_per_tcp_RL [expr $tcp_duration*125*$tx_capacity_per_RLC_kb]
@@ -101,7 +127,7 @@ set set_prio 0
 set set_fid 1
 
 # Single CoS setup (all Best Effort)
-# set ping_prio 0
+# set ping_prio 46
 set ping_prio 0
 # set tcp_data_prio 0
 set tcp_data_prio 0
@@ -111,13 +137,31 @@ set udp_data_prio 0
 set af_data_prio 10
 set ef_data_prio 46
 # set udp_data_prio 46
-set num_cos 2
+set num_cos 5
 set qos1(deadline) 1.0
 set qos2(deadline) 1.0
-set qos3(deadline) 1.0
-# set qos3(deadline) [expr 1e-3*($tx_latency_per_FLC_ms + $tx_latency_per_RLC_ms)]
+# set qos3(deadline) 1.0
+# set qos3(deadline) [expr 4e-3*($tx_latency_per_FLC_ms + $tx_latency_per_RLC_ms)]
+set qos3(deadline) [expr 1e-3*($delayRLms + $delayFLms)]
+set qos3(factor) 1
 
-set finish_margin 10.0
+set max_qos(deadline) [expr $qos3(deadline)*$qos3(factor)]
+if { $qos1(deadline) > $max_qos(deadline) } {
+	set max_qos(deadline) $qos1(deadline) 
+}
+if { $qos2(deadline) > $max_qos(deadline) } {
+	set max_qos(deadline) $qos2(deadline) 
+}
+
+set minqlim [expr 5*$tcp_init_window]
+# set minqlim 50
+# set minqlim 100
+# set minqlim 150
+
+set time_margin [expr $tcp_duration*4]
+
+set finish_margin $time_margin
+
 set traffic_duration 0.0
 if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0} {
 	set traffic_duration $tcp_duration
@@ -162,7 +206,7 @@ set fpingstime0 [expr $rpingstime0 + 1.0]
 set reset [expr $fpingstime0 + 1.0]
 set stop  [expr $reset + $traffic_duration]
 
-puts "Running test with $no_terminals terminal(s), $tx_capacity_per_RLC per RL carrier and $tx_capacity_per_FLC per FL carrier"
+puts "Running Remote---Access---Sat---Hub topology with $no_terminals terminal(s), $tx_capacity_per_RLC per RL carrier and $tx_capacity_per_FLC per FL carrier"
 puts "$rl_msg_size bytes messages in the RL, $fl_msg_size bytes messages in the FL"
 puts "$NbrRLC RL carriers and $NbrFLC FL carriers"
 # puts "PER = $per"
@@ -176,7 +220,7 @@ if { $fl_msg_size > 0 } {
 	puts "Required FL BER: $fl_req_ber"
 }
 puts "Rx capacity per FLC $rx_capacity_per_FLC"
-if { $rl_UDP_packets_rate > 0 } {
+if { $rl_UDP_packets_rate > 0 && $rl_msg_size > 0 } {
 	puts "$rl_UDP_packets_rate UDP packets/s in the RL"
 	set rl_service_rate [expr 1e3*$tx_capacity_per_RLC_kb/($rl_msg_size*8.0)]
 	puts "Service rate per RL carrier (mu) UDP packets/s: $rl_service_rate"
@@ -198,7 +242,7 @@ if { $rl_UDP_packets_rate > 0 } {
 	}
 	puts "RL UDP traffic duration for $num_pkts packets (s): $rl_udp_traffic_duration"
 }
-if { $fl_UDP_packets_rate > 0 } {
+if { $fl_UDP_packets_rate > 0 && $fl_msg_size > 0 } {
 	puts "$fl_UDP_packets_rate UDP packets/s in the FL"
 	set fl_service_rate [expr 1e3*$tx_capacity_per_FLC_kb/($fl_msg_size*8.0)]
 	puts "Service rate per FL carrier (mu) UDP packets/s: $fl_service_rate"
@@ -435,12 +479,13 @@ Agent/Ping instproc recv {from rtt} {
 	$from with round-trip-time $rtt ms."
 }
 
-proc new-pings { i k t fid prio } {
-	global ns ping h n num_cos ping_pkt_size
+# new ping agents i at remote node k
+proc new-pings { i k t fid prio pkt_size } {
+	global ns ping h n
 	global NbrFLC
 
 	set ping(r$i) [new Agent/Ping]
-	$ping(r$i) set packetSize_ $ping_pkt_size
+	$ping(r$i) set packetSize_ $pkt_size
 	$ping(r$i) set fid_ $fid
 	$ping(r$i) set prio_ $prio
 	set h_n [expr $i % $NbrFLC]
@@ -448,7 +493,7 @@ proc new-pings { i k t fid prio } {
 	$ns at $t "$ping(r$i) send"
 	
 	set ping(f$i) [new Agent/Ping]
-	$ping(f$i) set packetSize_ $ping_pkt_size
+	$ping(f$i) set packetSize_ $pkt_size
 	$ping(f$i) set fid_ $fid
 	$ping(f$i) set prio_ $prio
 	$ns attach-agent $h($h_n) $ping(f$i)
@@ -457,7 +502,7 @@ proc new-pings { i k t fid prio } {
 
 # Markovian on/off TCP traffic
 proc new-rl-tcp-exp { i k t } {
-	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global traffic_duration NbrFLC
 
 	set rs [new Agent/TCP/Linux]
@@ -472,7 +517,7 @@ proc new-rl-tcp-exp { i k t } {
 #		behaviour over LFN satelite networks preventing the smooth transition between Slow Start 
 #		and Congestion Avoidance phases.
 # 	$rs set window_ 20
- 	$rs set window_ 100
+ 	$rs set window_ $tcp_window_size
 #   $rs set window_ $buff_size_pkts
 	if { $rltcpexp(index) == 0 } {
 		puts "TCP slow start threshold: [$rs set window_]"
@@ -484,7 +529,7 @@ proc new-rl-tcp-exp { i k t } {
 # default value
 #   $rs set windowInit_ 2
 #   $rs set windowInit_ 3
-    $rs set windowInit_ 10
+    $rs set windowInit_ $tcp_init_window
 #   $rs set windowInit_ $buff_size_pkts
 	if { $rltcpexp(index) == 0 } {
 		puts "TCP initial window size: [$rs set windowInit_]"
@@ -534,11 +579,13 @@ proc new-rl-tcp-exp { i k t } {
 }
 
 proc new-fl-tcp-exp { i k t } {
-	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global traffic_duration NbrFLC
 	
 	set fs [new Agent/TCP/Linux]
 	# set fs [new Agent/TCP/FullTcp/Sack]
+	$fs set windowInit_ $tcp_init_window
+	$fs set window_ $tcp_window_size
 	$fs set tcpip_base_hdr_size_ 40	
 	$fs set segsize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
 	$fs set packetSize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
@@ -568,7 +615,7 @@ proc new-fl-tcp-exp { i k t } {
 
 # Bulk TCP Poisson traffic
 proc new-rl-tcp-poisson { i k t } {
-	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns rltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global traffic_duration NbrFLC
 
 	set rs [new Agent/TCP/Linux]
@@ -583,7 +630,7 @@ proc new-rl-tcp-poisson { i k t } {
 #		behaviour over LFN satelite networks preventing the smooth transition between Slow Start 
 #		and Congestion Avoidance phases.
 # 	$rs set window_ 20
- 	$rs set window_ 100
+ 	$rs set window_ $tcp_window_size
 #   $rs set window_ $buff_size_pkts
 	if { $rltcpexp(index) == 0 } {
 		puts "TCP slow start threshold: [$rs set window_]"
@@ -595,7 +642,7 @@ proc new-rl-tcp-poisson { i k t } {
 # default value
 #   $rs set windowInit_ 2
 #   $rs set windowInit_ 3
-    $rs set windowInit_ 10
+    $rs set windowInit_ $tcp_init_window
 #   $rs set windowInit_ $buff_size_pkts
 	if { $rltcpexp(index) == 0 } {
 		puts "TCP initial window size: [$rs set windowInit_]"
@@ -653,11 +700,13 @@ proc new-rl-tcp-poisson { i k t } {
 }
 
 proc new-fl-tcp-poisson { i k t } {
-	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns fltcpexp h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global traffic_duration no_terminals NbrFLC
 	
 	set fs [new Agent/TCP/Linux]
 	# set fs [new Agent/TCP/FullTcp/Sack]
+	$fs set windowInit_ $tcp_init_window
+	$fs set window_ $tcp_window_size
 	$fs set tcpip_base_hdr_size_ 40	
 	$fs set segsize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
 	$fs set packetSize_ [expr $mtu-[$fs set tcpip_base_hdr_size_]]
@@ -694,12 +743,12 @@ proc new-fl-tcp-poisson { i k t } {
 
 ## Bulk TCP traffic ##
 proc new-rl-tcp { i k t } {
-	global ns rltcp rlftp rsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns rltcp rlftp rsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global NbrFLC tcp_duration
 
 	set rltcp($rltcp(index)) [new Agent/TCP/Linux]
 	# set rltcp($rltcp(index)) [new Agent/TCP/FullTcp/Sack]
-	$rltcp($rltcp(index)) set class_ 0
+	$rltcp($rltcp(index)) set class_ $tcp_fid
 	# Print TCP parameters
 	#   Window_ sets the ssthreshold. Terrestrial TCP senders use as
 #		initial ssthreshold value of 38 pkts as it is common.
@@ -710,7 +759,7 @@ proc new-rl-tcp { i k t } {
 #		behaviour over LFN satelite networks preventing the smooth transition between Slow Start 
 #		and Congestion Avoidance phases.
 # 	$rltcp($rltcp(index)) set window_ 20
- 	$rltcp($rltcp(index)) set window_ 100
+ 	$rltcp($rltcp(index)) set window_ $tcp_window_size
 #   $rltcp($rltcp(index)) set window_ $buff_size_pkts
 	if { $rltcp(index) == 0 } {
 		puts "TCP slow start threshold: [$rltcp($rltcp(index)) set window_]"
@@ -722,7 +771,7 @@ proc new-rl-tcp { i k t } {
 # default value
 #   $rltcp($rltcp(index)) set windowInit_ 2
 #   $rltcp($rltcp(index)) set windowInit_ 3
-    $rltcp($rltcp(index)) set windowInit_ 10
+    $rltcp($rltcp(index)) set windowInit_ $tcp_init_window
 #   $rltcp($rltcp(index)) set windowInit_ $buff_size_pkts
 	if { $rltcp(index) == 0 } {
 		puts "TCP initial window size: [$rltcp($rltcp(index)) set windowInit_]"
@@ -774,12 +823,14 @@ proc new-rl-tcp { i k t } {
 }
 
 proc new-fl-tcp { i k t } {
-	global ns fltcp flftp fsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid
+	global ns fltcp flftp fsink f h n mtu tcp_data_prio tcp_fid set_prio ack_prio set_fid ack_fid tcp_window_size tcp_init_window
 	global no_terminals NbrFLC tcp_duration
 	
 	set fltcp($fltcp(index)) [new Agent/TCP/Linux]
 	# set fltcp($fltcp(index)) [new Agent/TCP/FullTcp/Sack]
-	$fltcp($fltcp(index)) set class_ 0
+	$fltcp($fltcp(index)) set class_ $tcp_fid
+	$fltcp($fltcp(index)) set windowInit_ $tcp_init_window
+	$fltcp($fltcp(index)) set window_ $tcp_window_size
 	$fltcp($fltcp(index)) set tcpip_base_hdr_size_ 40	
 	$fltcp($fltcp(index)) set segsize_ [expr $mtu-[$fltcp($fltcp(index)) set tcpip_base_hdr_size_]]
 	$fltcp($fltcp(index)) set packetSize_ [expr $mtu-[$fltcp($fltcp(index)) set tcpip_base_hdr_size_]]
@@ -815,15 +866,23 @@ proc new-fl-tcp { i k t } {
 
 # set num_conn 7
 set num_conn 1
+
+# HTTP request size in bytes
 set req_size 320
+
 # set objnum 43
 set objnum 0
-set obj_size [new RandomVariable/Pareto]
-set obj_maxsize 15000
 set last_web_done -1
 set num_webs 0
+# Random HTTP object sizes
+# set fixed_size 0
+set obj_size [new RandomVariable/Pareto]
+set obj_maxsize 15000
 $obj_size set shape_ 1.2
 $obj_size set avg_ 7187
+# set fixed_size to something greater than zero to use it, instead of random
+set fixed_size 10000
+
 set request_time [new RandomVariable/Uniform]
 $request_time set min_ 0
 $request_time set max_ $traffic_duration
@@ -846,11 +905,15 @@ Application/TcpApp instproc http-send-req-index {} {
 }
 
 Application/TcpApp instproc http-req-recv-index { } {
-	global ns obj_size obj_maxsize
+	global ns obj_size obj_maxsize fixed_size
 	$self instvar appc	
 	set size [expr int([$obj_size value])]
-	if {$size > $obj_maxsize} {
-		set size $obj_maxsize
+	if {$fixed_size > 0 } {
+		set size $fixed_size
+	} else {		
+		if {$size > $obj_maxsize} {
+			set size $obj_maxsize
+		}
 	}
 	$ns at [$ns now] "$self send $size \"$appc http-recv-index\""
 }
@@ -904,17 +967,21 @@ Application/TcpApp instproc http-recv-index {} {
 }
 
 Application/TcpApp instproc http-req-recv {obj_id} {
-	global ns obj_size  obj_num obj_maxsize 
+	global ns obj_size  obj_num obj_maxsize fixed_size
 	$self instvar appc id	
 	set size [expr int([$obj_size value])]
-	if { $size > $obj_maxsize } {
-		set size $obj_maxsize
+	if {$fixed_size > 0 } {
+		set size $fixed_size
+	} else {		
+		if {$size > $obj_maxsize} {
+			set size $obj_maxsize
+		}
 	}
 	$ns at [$ns now] "$self send $size \"$appc http-send-req $obj_id\""
 }
 
 Application/TcpApp instproc new-http-session { } {
-	global ns objnum tcp num_conn obj_num mtu data_prio tcp_fid
+	global ns objnum tcp num_conn obj_num mtu tcp_data_prio
 	global page_req_time
 	$self instvar id n1 n2
 	
@@ -925,15 +992,13 @@ Application/TcpApp instproc new-http-session { } {
 		set tcpc [new Agent/TCP/FullTcp/Sack]
 		$tcpc set tcpip_base_hdr_size_ 40
 		$tcpc set segsize_ [expr $mtu-[$tcpc set tcpip_base_hdr_size_]]
-#		$tcpc set fid_ $id
-		$tcpc set fid_ $tcp_fid
-		$tcpc set prio_ $data_prio
+		$tcpc set fid_ $id
+		$tcpc set prio_ $tcp_data_prio
 		set tcps [new Agent/TCP/FullTcp/Sack]
 		$tcps set tcpip_base_hdr_size_ 40
 		$tcps set segsize_ [expr $mtu-[$tcps set tcpip_base_hdr_size_]]
-#		$tcps set fid_ $id
-		$tcps set fid_ $tcp_fid
-		$tcps set prio_ $data_prio
+		$tcps set fid_ $id
+		$tcps set prio_ $tcp_data_prio
 		set appc [new Application/TcpApp $tcpc]
 		set apps [new Application/TcpApp $tcps]
 		$ns attach-agent $n1 $tcpc
@@ -958,20 +1023,19 @@ Application/TcpApp instproc new-http-session { } {
 
 proc new-http-session { id n1 n2 } {
 
-	global ns mtu data_prio tcp_fid
+	global ns mtu tcp_data_prio
 	set now [$ns now]
 	
 	set tcpc [new Agent/TCP/FullTcp/Sack]
 	$tcpc set tcpip_base_hdr_size_ 40
 	$tcpc set segsize_ [expr $mtu-[$tcpc set tcpip_base_hdr_size_]]
 	$tcpc set fid_ $id
-	$tcpc set prio_ $data_prio
+	$tcpc set prio_ $tcp_data_prio
 	set tcps [new Agent/TCP/FullTcp/Sack]
 	$tcps set tcpip_base_hdr_size_ 40
 	$tcps set segsize_ [expr $mtu-[$tcps set tcpip_base_hdr_size_]]
-#	$tcps set fid_ $id
-	$tcps set fid_ $tcp_fid
-	$tcps set prio_ $data_prio
+	$tcps set fid_ $id
+	$tcps set prio_ $tcp_data_prio
 	set appc [new Application/TcpApp $tcpc]
 	set apps [new Application/TcpApp $tcps]
 
@@ -1017,12 +1081,19 @@ for {set i 0} { $i < $no_terminals } {incr i} {
 	$n($i) label "UT $i"
 }
 
+# set qlim [expr 50 +3*$no_terminals]
+# set qlim [expr ceil($rx_capacity_per_RLC_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(factor)*$qos3(deadline))/(8*$ack_size))]
+set qlim [expr ceil($rx_capacity_per_RLC_Mb*1e6*$max_qos(deadline)/(8*$ack_size))]
+if { $qlim < $tcp_init_window } {
+	puts "A queue size of $qlim packets at Sat--->Hub would be too low, setting it to $minqlim."
+	set qlim $minqlim
+}
 for {set i 0} { $i < $NbrFLC } {incr i} {	
-	$ns simplex-link $n0 $h($i) $rx_capacity_per_FLC $rx_latency_per_FLC DropTail		
-	# $ns queue-limit $n0 $h($i) [expr 50 +3*$no_terminals]
-	$ns queue-limit $n0 $h($i) [expr ceil($rx_capacity_per_FLC_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
+	$ns simplex-link $n0 $h($i) $rx_capacity_per_RLC $rx_latency_per_RLC DropTail		
+	$ns queue-limit $n0 $h($i) $qlim
 	# Monitor the queue for link (for NAM)
-	$ns simplex-link-op $n0 $h($i) queuePos 0.5
+#	$ns simplex-link-op $n0 $h($i) queuePos 0.5
+# 	Queues are already traced when doing trace-all
 #	$ns trace-queue $n0 $h($i)
 #	$ns namtrace-queue $n0 $h($i)
 
@@ -1039,34 +1110,55 @@ for {set i 0} { $i < $NbrFLC } {incr i} {
 	$ns lossmodel $em1_($i) $n0 $h($i)
 }
 
+# set qlim [expr 50 +3*$no_terminals]
+# set qlim [expr ceil($tx_capacity_per_FLC_kb*1e3*($qos1(deadline)+$qos2(deadline)+$qos3(factor)*$qos3(deadline))/(8*$ack_size))]
+set qlim [expr ceil($tx_capacity_per_FLC_kb*1e3*$max_qos(deadline)/(8*$ack_size))]
+if { $qlim < $tcp_init_window } {
+	puts "A queue size of $qlim packets in the FL Sat<---Hub would be too low, setting it to $minqlim."
+	set qlim $minqlim
+}
 for {set i 0} { $i < $NbrFLC } {incr i} {	
 	## All routers are core since the prio_ field is already set by Agent and we do not wish to change it
 	$ns simplex-link $h($i) $n0 $tx_capacity_per_FLC $tx_latency_per_FLC dsRED/core
 	# $ns simplex-link $h($i) $n0 $tx_capacity_per_FLC $tx_latency_per_FLC DropTail	
-	# $ns queue-limit $h($i) $n0 [expr 50 +3*$no_terminals]
-	$ns queue-limit $h($i) $n0 [expr ceil($tx_capacity_per_FLC_kb*1e3*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
+	$ns queue-limit $h($i) $n0 $qlim
 	# Monitor the queue for link (for NAM)
 	$ns simplex-link-op $h($i) $n0 queuePos 0.5
+# 	Queues are already traced when doing trace-all
 #	$ns trace-queue $h($i) $n0
-#	$ns namtrace-queue $h($i) $n0
+	$ns namtrace-queue $h($i) $n0
 }
 
 for {set i 0} { $i < $NbrRLC } {incr i} {
-	$ns simplex-link $n0 $an($i) $rx_capacity_per_RLC $rx_latency_per_RLC DropTail
-	# $ns queue-limit $n0 $an($i) 50
-	$ns queue-limit $n0 $an($i) [expr ceil($rx_capacity_per_RLC_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
+	$ns simplex-link $n0 $an($i) $rx_capacity_per_FLC $rx_latency_per_FLC DropTail
+	# set qlim 50
+# 	set qlim [expr ceil($rx_capacity_per_FLC_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(factor)*$qos3(deadline))/(8*$ack_size))]
+	set qlim [expr ceil($rx_capacity_per_FLC_Mb*1e6*$max_qos(deadline)/(8*$ack_size))]
+	if { $qlim < $minqlim } {
+		puts "A queue size of $qlim packets at Access<---Sat would be too low, setting it to $minqlim."
+		set qlim $minqlim
+	}
+	$ns queue-limit $n0 $an($i) $qlim
 	# Monitor the queue for link (for NAM)
-	$ns simplex-link-op $n0 $an($i) queuePos 0.5
+	# $ns simplex-link-op $n0 $an($i) queuePos 0.5
 #	$ns trace-queue $n0 $an($i)
+# 	Queues are already traced when doing trace-all
 #	$ns namtrace-queue $n0 $an($i)
 	# $ns simplex-link $an($i) $n0 $tx_capacity_per_RLC $tx_latency_per_RLC DropTail
 	$ns simplex-link $an($i) $n0 $tx_capacity_per_RLC $tx_latency_per_RLC dsRED/core
-	# $ns queue-limit $an($i) $n0 50
-	$ns queue-limit $an($i) $n0 [expr ceil($tx_capacity_per_RLC_kb*1e3*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
+	# set qlim 50
+#	set qlim [expr ceil($tx_capacity_per_RLC_kb*1e3*($qos1(deadline)+$qos2(deadline)+$qos3(factor)*$qos3(deadline))/(8*$ack_size))]
+	set qlim [expr ceil($tx_capacity_per_RLC_kb*1e3*$max_qos(deadline)/(8*$ack_size))]
+	if { $qlim < $minqlim } {
+		puts "A queue size of $qlim packets in the RL Access--->Sat would be too low, setting it to $minqlim."
+		set qlim $minqlim
+	}
+	$ns queue-limit $an($i) $n0 $qlim
 	# Monitor the queue for link (for NAM)
 	$ns simplex-link-op $an($i) $n0 queuePos 0.5
+# 	Queues are already traced when doing trace-all
 #	$ns trace-queue $an($i) $n0 
-#	$ns namtrace-queue $an($i) $n0
+	$ns namtrace-queue $an($i) $n0
 
 	# Add an error model to the receiving access node
 	set em_($i) [new ErrorModel]
@@ -1081,17 +1173,30 @@ for {set i 0} { $i < $NbrRLC } {incr i} {
 	$ns lossmodel $em_($i) $n0 $an($i)
 }
 
+# set qlim 1700000
+# set qlim [expr ceil($onboard_net_capacity_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(factor)*$qos3(deadline))/(8*$ack_size))]
+set qlim [expr ceil($onboard_net_capacity_Mb*1e6*$max_qos(deadline)/(8*$ack_size))]
+if { $qlim < $minqlim } {
+	puts "A queue size of $qlim packets would be too low at Remote<--->Access, setting it to $minqlim."
+	set qlim $minqlim
+}
 for {set i 0} { $i < $no_terminals } {incr i} {
 	set k [expr $i % $NbrRLC]
 	$ns duplex-link $n($i) $an($k) $onboard_net_capacity $onboard_net_delay DropTail
-	# $ns queue-limit $n($i) $an($k) 1700000
-	$ns queue-limit $n($i) $an($k) [expr ceil($onboard_net_capacity_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
-	# $ns queue-limit $an($k) $n($i) 1700000
-	$ns queue-limit $an($k) $n($i) [expr ceil($onboard_net_capacity_Mb*1e6*($qos1(deadline)+$qos2(deadline)+$qos3(deadline))/(8*$ack_size))]
+	$ns queue-limit $n($i) $an($k) $qlim
+	$ns queue-limit $an($k) $n($i) $qlim
 }
 
 ## DiffServ configuration
 
+set minth0 [expr ceil($bwFL_kb*1e3*$qos1(deadline)/(8*$ack_size*$NbrFLC))]
+set minth1 [expr ceil($bwFL_kb*1e3*$qos2(deadline)/(8*$ack_size*$NbrFLC))]
+# set minth2 [expr ceil($fl_bdp_factor*$tx_capacity_per_FLC_kb*($delayFLms + $delayRLms)/(8.0*$ack_size))]
+set minth2 [expr ceil($bwFL_kb*1e3*$qos3(factor)*$qos3(deadline)/(8*$ack_size*$NbrFLC))]
+if { $minth2 < $minqlim } {
+	puts "A BE CoS queue size of $minth2 packets at FL Sat<---Hub would be too low, setting it to $minqlim."
+	set minth2 $minqlim
+}
 ## Get DiffServ queues handles
 for {set i 0} { $i < $NbrFLC } {incr i} {
 	set qh($i) [[$ns link $h($i) $n0] queue]
@@ -1109,12 +1214,8 @@ for {set i 0} { $i < $NbrFLC } {incr i} {
 	$qh($i) setMREDMode DROP 2
 	## DROP queues only require minth specification (queue size in packets 50 is the default value). First argument is physical queue index, second, virtual queue index.
 	# https://www.isi.edu/nsnam/ns/doc/node98.html
-	set minth0 [expr ceil($bwFL_kb*1e3*$qos1(deadline)/(8*$ack_size*$NbrFLC))]
 	$qh($i) configQ 0 0 $minth0 [expr $minth0 + 10] 0.10
-	set minth1 [expr ceil($bwFL_kb*1e3*$qos2(deadline)/(8*$ack_size*$NbrFLC))]
 	$qh($i) configQ 1 0 $minth1 [expr $minth1 + 10] 0.10
-#	set minth2 [expr ceil($fl_bdp_factor*$tx_capacity_per_FLC_kb*($delayFLms + $delayRLms)/(8.0*$ack_size))]
-	set minth2 [expr ceil($bwFL_kb*1e3*$qos3(deadline)/(8*$ack_size*$NbrFLC))]
 	$qh($i) configQ 2 0 $minth2 [expr $minth2 + 10] 0.10
 	## Map code point 46 (EF) to physical queue 0 virtual queue 0
 	$qh($i) addPHBEntry $ef_data_prio 0 0
@@ -1131,6 +1232,15 @@ puts "Queue Sizes per CoS in the FL:"
 puts "CoS 0 queue size in packets: $minth0"
 puts "CoS 1 queue size in packets: $minth1"
 puts "CoS 2 queue size in packets: $minth2"
+
+set minth0 [expr ceil($bwRL_kb*1e3*$qos1(deadline)/(8*$ack_size*$NbrRLC))]
+set minth1 [expr ceil($bwRL_kb*1e3*$qos2(deadline)/(8*$ack_size*$NbrRLC))]
+# set minth2 [expr ceil($rl_bdp_factor*$tx_capacity_per_RLC_kb*($delayFLms + $delayRLms)/(8.0*$ack_size))]
+set minth2 [expr ceil($bwRL_kb*1e3*$qos3(factor)*$qos3(deadline)/(8*$ack_size*$NbrRLC))]
+if { $minth2 < $minqlim } {
+	puts "A BE CoS queue size of $minth2 packets at Access--->Sat would be too low, setting it to $minqlim."
+	set minth2 $minqlim
+}
 for {set i 0} { $i < $NbrRLC } {incr i} {
 	set qa($i) [[$ns link $an($i) $n0] queue]
 	$qa($i) meanPktSize $ack_size
@@ -1139,10 +1249,6 @@ for {set i 0} { $i < $NbrRLC } {incr i} {
 	$qa($i) setMREDMode DROP 0
 	$qa($i) setMREDMode DROP 1
 	$qa($i) setMREDMode DROP 2
-	set minth0 [expr ceil($bwRL_kb*1e3*$qos1(deadline)/(8*$ack_size*$NbrRLC))]
-	set minth1 [expr ceil($bwRL_kb*1e3*$qos2(deadline)/(8*$ack_size*$NbrRLC))]
-#	set minth2 [expr ceil($rl_bdp_factor*$tx_capacity_per_RLC_kb*($delayFLms + $delayRLms)/(8.0*$ack_size))]
-	set minth2 [expr ceil($bwRL_kb*1e3*$qos3(deadline)/(8*$ack_size*$NbrRLC))]
 	$qa($i) configQ 0 0 $minth0 [expr $minth0 + 10] 0.10
 	$qa($i) configQ 1 0 $minth1 [expr $minth1 + 10] 0.10
 	$qa($i) configQ 2 0 $minth2 [expr $minth2 + 10] 0.10
@@ -1208,13 +1314,13 @@ proc finish-sim {} {
 }
 
 for {set i 0} {$i<$no_terminals} {incr i} {
-	# $ns at $start "new-pings $i $i $ping_fid $ping_prio"
+	# $ns at $start "new-pings $i $i $ping_fid $ping_prio $ping_pkt_size"
 	# $ns at $start "new-rl-udpExpo $i $i"
 	# $ns at $start "new-rl-tcpExpo $i $i"
 	# for {set j 0} { $j < [expr $no_streams_term-1]} {incr j} {
 		# $ns at $start "new-rl-voip [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-voip [expr $i*$no_streams_term+$j] $i"
-		# $ns at $start "new-pings [expr $i*$no_streams_term+$j] $i $ping_fid $ping_prio"
+		# $ns at $start "new-pings [expr $i*$no_streams_term+$j] $i $ping_fid $ping_prio $ping_pkt_size"
 		# $ns at $start "new-rl-tcp-poisson [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-tcp-poisson [expr $i*$no_streams_term+$j] $i"
 		# $ns at $start "new-fl-tcp-exp [expr $i*$no_streams_term+$j] $i"
@@ -1233,70 +1339,85 @@ for {set i 0} {$i<$no_terminals} {incr i} {
 # Initial single pings
 if { $set_prio > 0 } {
 	set pingTime $currTime
-	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
-	$ns at $start "new-pings 0 0 $pingTime 0 46"
+	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
+	$ns at $start "new-pings 0 0 $pingTime 0 46 $ping_pkt_size"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 }
 
 set pingTime $currTime
-$ns at $start "new-pings 0 0 $pingTime 1 0"
+$ns at $start "new-pings 0 0 $pingTime 1 0 $ping_pkt_size"
 set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 
-# TCP tests as done in https://www.benzedrine.ch/ackpri.html
+# 100 pings for BE each 0.85 s
+set ping_pkt_size 64
+for {set i 0} {$i<100} {incr i} {
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime 2 0 $ping_pkt_size"
+	set currTime [expr $pingTime + 0.85]
+}
+
+set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+
+# 10 MTU size pings for BE each 0.85 s
+set ping_pkt_size $mtu
+for {set i 0} {$i<10} {incr i} {
+	set pingTime $currTime
+	$ns at $start "new-pings 0 0 $pingTime 3 0 $ping_pkt_size"
+	set currTime [expr $pingTime + 0.85]
+}
+set ping_pkt_size 64
+set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 5.0]
+
+# TCP tests
 if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
 	$ns at $start "new-fl-tcp 0 0 $currTime"
-	# set currTime [expr $currTime + 5.0 + $tcp_duration]
-	set currTime [expr $currTime + $tcp_duration/2]
+	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
+	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio $ping_pkt_size"
 	if {$set_fid > 0 } {
 		if {$set_prio > 0 } {
-			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio $ping_pkt_size"
 		} else {
-			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio $ping_pkt_size"
 		}
 	}
-	# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
-
-	# $ns at $start "new-rl-tcp 0 0 $currTime"
-	# $ns at $start "new-fl-tcp 0 0 $currTime"
-	# set currTime [expr $currTime + 5.0 + $tcp_duration]
-	# set pingTime $currTime
-	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
-	# set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + $time_margin]
 
 	$ns at $start "new-rl-tcp 0 0 $currTime"
-	# set currTime [expr $currTime + 5.0 + $tcp_duration]
-	set currTime [expr $currTime + $tcp_duration/2]
+	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
+	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio $ping_pkt_size"
 	if {$set_fid > 0 } {
 		if {$set_prio > 0 } {
-			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio $ping_pkt_size"
 		} else {
-			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio $ping_pkt_size"
 		}
 	}
-	set currTime [expr $currTime + 10.0 + $tcp_duration/2]
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + $time_margin]
+
+	$ns at $start "new-rl-tcp 0 0 $currTime"
+	$ns at $start "new-fl-tcp 0 0 $currTime"
+	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio"
-#	if {$set_fid > 0 } {
+	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
+	if {$set_fid > 0 } {
 		if {$set_prio > 0 } {
-			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio"
-#		} else {
-#			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio"
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $ack_prio $ping_pkt_size"
+		} else {
+			$ns at $start "new-pings 0 0 $pingTime $ack_fid $tcp_data_prio $ping_pkt_size"
 		}
-#	}
-	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
+	}
+	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + $time_margin]
 }
-# End of TCP tests as done in https://www.benzedrine.ch/ackpri.html
+# End of TCP tests
 
 # UDP Expo Agents
 #if {$rl_UDP_packets_rate > 0 } {
 #	$ns at $start "new-rl-udpExpo 0 0 $currTime"
 #	set currTime [expr $currTime + 5.0 + $rl_udp_traffic_duration]
 #	set pingTime $currTime
-#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
 #	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 #}
 
@@ -1304,32 +1425,32 @@ if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
 #	$ns at $start "new-fl-udpExpo 0 0 $currTime"
 #	set currTime [expr $currTime + 5.0 + $fl_udp_traffic_duration]
 #	set pingTime $currTime
-#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+#	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
 #	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 #}
 
 # UDP CBR Agents
-if {$fl_UDP_packets_rate > 0 } {
+if {$fl_UDP_packets_rate > 0 && $fl_msg_size > 0 } {
 	$ns at $start "new-fl-udpCBR 0 0 $currTime"
 	$ns at $start "new-fl-udpCBR_custom 0 0 $currTime [expr $fraction*1000*$tx_capacity_per_FLC_kb/(40*8)] 40 46 0 $fl_udp_traffic_duration"
 	set currTime [expr $currTime + 5.0 + $fl_udp_traffic_duration]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio"
+	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio $ping_pkt_size"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime 0 46"
+	$ns at $start "new-pings 0 0 $pingTime 0 46 $ping_pkt_size"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 }
 
-if {$rl_UDP_packets_rate > 0 } {
+if {$rl_UDP_packets_rate > 0 && $rl_msg_size > 0 } {
 	$ns at $start "new-rl-udpCBR 0 0 $currTime"
 	$ns at $start "new-rl-udpCBR_custom 0 0 $currTime [expr $fraction*1000*$tx_capacity_per_RLC_kb/(40*8)] 40 46 0 $rl_udp_traffic_duration"
 	set currTime [expr $currTime + 5.0 + $rl_udp_traffic_duration]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio"
+	$ns at $start "new-pings 0 0 $pingTime $udp_fid $udp_data_prio $ping_pkt_size"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 	set pingTime $currTime
-	$ns at $start "new-pings 0 0 $pingTime 0 46"
+	$ns at $start "new-pings 0 0 $pingTime 0 46 $ping_pkt_size"
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 }
 
@@ -1339,31 +1460,36 @@ if {$rl_UDP_packets_rate > 0 } {
 
 # Web download
 # $ns at $start "new-http-session 0 $n(0) $h(0)"
+$ns at $currTime "new-http-session 4 $n(0) $h(0)"
+set currTime [expr $currTime + 5.0]
+$ns at $currTime "set fixed_size 352000"
+set currTime [expr $currTime + 5.0]
+$ns at $currTime "new-http-session 4 $n(0) $h(0)"
+
 # Web upload
 # $ns at $start "new-http-session 0 $h(0) $n(0)"
 
 # Final single pings
 # if { $set_prio > 0 } {
 #	set pingTime $currTime
-#	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
-#	$ns at $start "new-pings 0 0 $pingTime 0 46"
+	# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
+#	$ns at $start "new-pings 0 0 $pingTime 0 46 $ping_pkt_size"
 #	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
-# }
+#}
 
 # set pingTime $currTime
-# $ns at $start "new-pings 0 0 $pingTime 1 0"
+# $ns at $start "new-pings 0 0 $pingTime 1 0 $ping_pkt_size"
 # set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 1.0]
 
 # set fpingstime1 [expr $stop + 1.0 + $num_fl_flows + $num_rl_flows]
 set fpingstime1 [expr $currTime + $finish_margin + 1.0]
 set rpingstime1 [expr $fpingstime1 + 1.0]
 # set pingTime $rpingstime1
-# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio"
+# $ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
 
 set duration [expr $rpingstime1 + $finish_margin]
 
 $ns at $duration "finish-sim"
 
 $ns run
-
 
