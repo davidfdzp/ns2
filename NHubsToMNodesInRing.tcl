@@ -5,9 +5,16 @@
 ## Simulated topology consists of N hubs connected to N gateway with a 150 kbit/s full duplex link.
 ##
 ## The M possible nodes are connected intermitently in ring, following a connectivity matrix, in a half-duplex way.
+## The connectivity matrix period is equal to M (number of nodes) timeslots of timeslot duration (40 s).
+## Each timeslot there are two uptime periods that pairs of nodes A <-> B can connect each other in each direction.
+## The first part of timeslot A -> B, then A <- B. 
 ## The link rate is 120 kbit/s and there are two 14.5 s connections possible in each direction each 40 s.
 ##
 ## There are ping agents at the hubs and at each node to characterize the network latency.
+## First each node pings each hub, then each hub pings to each node.
+## So, if M nodes have to ping N hubs M*N pings are sent in M*N timeslots. Then N hubs send N*M pings to nodes.
+## In total 2*M*N pings are sent to characterize network latency in 2*M*N timeslots.
+## The connectivity matrix needs to be repeated 2*N times.
 ## 
 ## A VoIP could be established between any hub and any node.
 ## An FTP transfer can be done between any node and any hub.
@@ -162,7 +169,7 @@ set currentTime $startpingtime
 if { $opt(nodes) == 4 } {
 	# Assuming permanent connectivity among GWs
 
-	for {set i 0} { $i < 10 } {incr i} {
+	for {set i 0} { $i < [expr 2*$opt(hubs)] } {incr i} {
 		# Timeslot 1
 		# Connections up: [ 01 -> 04 -> 02 -> 03 -> 01 ]
 		set currentTime [expr $currentTime + $linkSetupTime]
@@ -469,7 +476,7 @@ proc finish {} {
 
 	# puts "$num_pings_tx pings sent at interval t=\[$minstartpingtime, $maxstartpingtime\] s."
     	# puts "$num_pings_rx pings received at interval t=\[$minpingtimerx, $maxpingtimerx\] s with RTT=\[$minrtt, $maxrtt] ms."
-	puts "$num_pings_tx and $num_pings_rx pings received with RTT=\[$minrtt, $maxrtt] ms."
+	puts "$num_pings_tx pings sent and $num_pings_rx pings received with RTT=\[$minrtt, $maxrtt] ms."
     	puts "Ping loss rate: [expr 1 - (1.0 * $num_pings_rx) / $num_pings_tx ]"
 
 	puts "run nam NHubsToMNodesInRing.nam..."
