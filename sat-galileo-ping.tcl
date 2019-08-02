@@ -31,40 +31,41 @@
 # SUCH DAMAGE.
 #
 # Contributed by Tom Henderson, UCB Daedalus Research Group, June 1999
-#
-# $Header: /cvsroot/nsnam/ns-2/tcl/ex/sat-iridium.tcl,v 1.4 2001/11/06 06:20:11 tomh Exp $
-#
-# Example of a broadband LEO constellation with orbital configuration 
-# similar to that of Iridium.  The script sets up two terminals (one in 
-# Boston, one at Berkeley) and sends a packet from Berkeley to Boston
+
+# Example of a MEO constellation with orbital configuration 
+# similar to that of Galileo.  The script sets up one uplink ground station and
+# one user and sends a packet from the ground station to the user
 # every second for a whole day-- the script illustrates how the latency
-# due to propagation delay changes depending on the satellite configuration. 
+# due to propagation delay changes depending on the satellite network configuration. 
 #
 # This script relies on sourcing two additional files:
-# - sat-iridium-nodes.tcl
-# - sat-iridium-links.tcl
-# Iridium does not have crossseam ISLs-- to enable crossseam ISLs, uncomment 
-# the last few lines of "sat-iridium-links.tcl"
+# - sat-galileo-nodes.tcl
+# - sat-galileo-links.tcl
+# To enable crossseam ISLs, uncomment 
+# the last few lines of "sat-galileo-links.tcl"
 #
-# Iridium parameters [primary reference:  "Satellite-Based Global Cellular
-# Communications by Bruno Pattan (1997-- McGraw-Hill)]
-# Altitude = 780 km
-# Orbital period = 6026.9 sec
-# intersatellite separation = 360/11 deg
-# interplane separation = 31.6 deg
-# seam separation = 22 deg
-# inclination = 86.4
-# eccentricity =  0.002 (not modelled)
-# minimum elevation angle at edge of coverage = 8.2 deg
-# ISL cross-link pattern:  2 intraplane to nearest neighbors in plane, 
-#   2 interplane except at seam where only 1 interplane exists
-
+# Ground stations locations:
+# Kiruna - lat 67.85 deg, lon 20.96 deg, alt 0.3911 km
+# Kourou - lat 5.08 deg, lon -52.63, alt 0.02557 km
+# Noumea - lat -22.27 deg, lon 166.41 deg, alt 0.08734 km
+# Papetee - lat -17.58 deg, lon -149.62 deg, alt 0.09804 km
+# Reunion - lat -21.22 deg, lon 55.57 deg, alt 1.5584 km
+# Redu - lat 50 deg, lon 5.15 deg, alt 0.1782 km
+#
+# Galileo parameters [primary reference: https://www.gsc-europa.eu/system-status/orbital-and-technical-parameters ]
+# Altitude = 23228.8 km (29599.8 - 6371)
+# Orbital period = 14 hours and 7 min (50820 s)
+# interplane separation = 360/16 deg (minimum, from nominal to spare), 360/8 between nominal
+# inclination = 56.0
+# eccentricity =  0.0 (not modelled)
+# minimum elevation angle at edge of coverage = 5 deg
+# ISL cross-link pattern:  2 ISL
 
 global ns
 set ns [new Simulator]
 
 # Global configuration parameters 
-HandoffManager/Term set elevation_mask_ 8.2
+HandoffManager/Term set elevation_mask_ 5
 HandoffManager/Term set term_handoff_int_ 10
 HandoffManager/Sat set sat_handoff_int_ 10
 HandoffManager/Sat set latitude_threshold_ 60 
@@ -77,13 +78,13 @@ SatRouteObject set data_driven_computation_ true
 ns-random 1
 Agent set ttl_ 32; # Should be > than max diameter in network
 
-# One plane of Iridium-like satellites
+# One plane of Galileo-like satellites
 
 global opt
 set opt(chan)           Channel/Sat
-set opt(bw_down)        1.5Mb; # Downlink bandwidth (satellite to ground)
-set opt(bw_up)          1.5Mb; # Uplink bandwidth
-set opt(bw_isl)         25Mb
+set opt(bw_down)        100kb; # Downlink bandwidth (satellite to ground)
+set opt(bw_up)          100kb; # Uplink bandwidth
+set opt(bw_isl)         120kb
 set opt(phy)            Phy/Sat
 set opt(mac)            Mac/Sat
 set opt(ifq)            Queue/DropTail
@@ -91,11 +92,11 @@ set opt(qlim)           50
 set opt(ll)             LL/Sat
 set opt(wiredRouting) 	OFF
 
-set opt(alt)            780; # Polar satellite altitude (Iridium)
-set opt(inc)            86.4; # Orbit inclination w.r.t. equator
+set opt(alt)            23228.8; # Satellite altitude (Galileo)
+set opt(inc)            56.0; # Orbit inclination w.r.t. equator
 
 # XXX This tracing enabling must precede link and node creation
-set outfile [open sat-iridium-ping.tr w]
+set outfile [open sat-galileo-ping.tr w]
 $ns trace-all $outfile
 
 # Create the satellite nodes
@@ -114,19 +115,21 @@ $ns node-config -satNodeType polar \
 set alt $opt(alt)
 set inc $opt(inc)
 
-source sat-iridium-nodes.tcl
+source sat-galileo-nodes.tcl
 
 # configure the ISLs
-source sat-iridium-links.tcl
+source sat-galileo-links.tcl
 
 # Set up terrestrial nodes
 $ns node-config -satNodeType terminal
 set n100 [$ns node]
 # $n100 set-position 37.9 -122.3; # Berkeley
-$n100 set-position 0 0
+$n100 set-position 50 5.15; # Redu, alt 0.1782 km
+# $n100 set-position 0 0
 set n101 [$ns node]
 # $n101 set-position 42.3 -71.1; # Boston 
-$n101 set-position 0 10
+$n101 set-position 52.24 4.45; # Noordwijk
+# $n101 set-position 0 10
 
 # Add GSL links
 # It doesn't matter what the sat node is (handoff algorithm will reset it)
@@ -154,7 +157,7 @@ $ns connect $udp0 $null0
 
 ## ICMP traffic ##
 
-set filename "RTTs.txt"
+set filename "GalileoRTTs.txt"
 set fileId [open $filename "w"]
 
 set max_rtt 0
@@ -203,7 +206,8 @@ $ns connect $pingtx $pingrx
 set satrouteobject_ [new SatRouteObject]
 $satrouteobject_ compute_routes
 
-set duration 86400 ; # one earth rotation
+# set duration 86400 ; # one earth rotation
+set duration 50820 ; # one orbit rotation
 
 for { set i 0} { $i < $duration } {incr i} {
 	$ns at $i "$pingtx send"
@@ -219,7 +223,7 @@ proc finish {} {
 	close $fileId
 	puts "$num_pings_tx packets transmitted, $num_pings_rx received, [expr 100*($num_pings_tx-$num_pings_rx)/$num_pings_tx]% packet loss, time $duration s"
 	puts "rtt min/avg/max/stdev = $min_rtt/$avg/$max_rtt/[expr sqrt(1.0*$quk/($num_pings_rx-1))] ms"
-	exec ./sat-iridium-ping.sh
+	exec ./sat-galileo-ping.sh
 	exit 0
 }
 
