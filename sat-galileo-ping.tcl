@@ -207,7 +207,10 @@ set satrouteobject_ [new SatRouteObject]
 $satrouteobject_ compute_routes
 
 # set duration 86400 ; # one earth rotation
-set duration 50820 ; # one orbit rotation
+# set duration 50820 ; # one orbit rotation
+set duration 12705 ; # a quarter of an orbit
+
+$ns at 0.0 "$n0 dump_sats"
 
 for { set i 0} { $i < $duration } {incr i} {
 	$ns at $i "$pingtx send"
@@ -228,4 +231,3 @@ proc finish {} {
 }
 
 $ns run
-

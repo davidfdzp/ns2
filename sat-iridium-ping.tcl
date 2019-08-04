@@ -43,6 +43,7 @@
 # This script relies on sourcing two additional files:
 # - sat-iridium-nodes.tcl
 # - sat-iridium-links.tcl
+
 # Iridium does not have crossseam ISLs-- to enable crossseam ISLs, uncomment 
 # the last few lines of "sat-iridium-links.tcl"
 #
@@ -91,7 +92,7 @@ set opt(qlim)           50
 set opt(ll)             LL/Sat
 set opt(wiredRouting) 	OFF
 
-set opt(alt)            780; # Polar satellite altitude (Iridium)
+set opt(alt)            780; # Polar satellite altitude (Iridium) km
 set opt(inc)            86.4; # Orbit inclination w.r.t. equator
 
 # XXX This tracing enabling must precede link and node creation
@@ -128,7 +129,7 @@ set n101 [$ns node]
 # $n101 set-position 42.3 -71.1; # Boston 
 $n101 set-position 0 10
 
-# Add GSL links
+# Add GSL (Ground Satellite Links)
 # It doesn't matter what the sat node is (handoff algorithm will reset it)
 $n100 add-gsl polar $opt(ll) $opt(ifq) $opt(qlim) $opt(mac) $opt(bw_up) \
   $opt(phy) [$n0 set downlink_] [$n0 set uplink_]
@@ -200,10 +201,27 @@ $ns attach-agent $n101 $pingrx
 $ns connect $pingtx $pingrx
 
 # We're using a centralized routing genie-- create and start it here
+SatRouteObject set metric_delay_ "true"
+# Set it to false to use only hop count, not propagation delay, as the metric
+# SatRouteObject set metric_delay_ "false"
+# SatRouteObject set data_driven_computation_ "false"
+# From 20:07:08 to 20:08:12
+# Set it to true to make routes to be computed only when there is a packet to send, speeding up the simulations (not in fact!)
+SatRouteObject set data_driven_computation_ "true"
+# From 20:09:13 to 20:14:04 !
+
 set satrouteobject_ [new SatRouteObject]
 $satrouteobject_ compute_routes
 
 set duration 86400 ; # one earth rotation
+
+$ns at 0.0 dump_satellites
+
+proc dump_satellites {} {
+	global n0
+	$n0 dump_sats
+	flush stdout
+}
 
 for { set i 0} { $i < $duration } {incr i} {
 	$ns at $i "$pingtx send"
@@ -219,7 +237,7 @@ proc finish {} {
 	close $fileId
 	puts "$num_pings_tx packets transmitted, $num_pings_rx received, [expr 100*($num_pings_tx-$num_pings_rx)/$num_pings_tx]% packet loss, time $duration s"
 	puts "rtt min/avg/max/stdev = $min_rtt/$avg/$max_rtt/[expr sqrt(1.0*$quk/($num_pings_rx-1))] ms"
-	exec ./sat-iridium-ping.sh
+	# exec ./sat-iridium-ping.sh
 	exit 0
 }
 

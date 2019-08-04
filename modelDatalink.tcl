@@ -137,7 +137,7 @@ set udp_data_prio 0
 set af_data_prio 10
 set ef_data_prio 46
 # set udp_data_prio 46
-set num_cos 5
+set num_cos 6
 set qos1(deadline) 1.0
 set qos2(deadline) 1.0
 # set qos3(deadline) 1.0
@@ -159,6 +159,8 @@ set minqlim [expr 5*$tcp_init_window]
 # set minqlim 150
 
 set time_margin [expr $tcp_duration*4]
+# set time_margin_factor 40
+set time_margin_factor 3
 
 set finish_margin $time_margin
 
@@ -888,7 +890,7 @@ $request_time set min_ 0
 $request_time set max_ $traffic_duration
 set min_web_duration 10000
 set max_web_duration 0
-set web_duration_filename "web_durations.txt"
+set web_duration_filename "modelDatalink_web_durations.txt"
 
 Application/TcpApp instproc http-send-req-index {} {
 	global ns req_size objnum obj_num duration testing
@@ -1371,7 +1373,7 @@ set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + 5.0]
 # TCP tests
 if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
 	$ns at $start "new-fl-tcp 0 0 $currTime"
-	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
+	set currTime [expr $currTime + $tcp_duration + $time_margin/$time_margin_factor]
 	set pingTime $currTime
 	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio $ping_pkt_size"
 	if {$set_fid > 0 } {
@@ -1384,7 +1386,7 @@ if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
 	set currTime [expr $pingTime + $ping_rtt_ms/1000.0 + $time_margin]
 
 	$ns at $start "new-rl-tcp 0 0 $currTime"
-	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
+	set currTime [expr $currTime + $tcp_duration + $time_margin/$time_margin_factor]
 	set pingTime $currTime
 	$ns at $start "new-pings 0 0 $pingTime $tcp_fid $tcp_data_prio $ping_pkt_size"
 	if {$set_fid > 0 } {
@@ -1398,7 +1400,7 @@ if {$rl_TCP_packets_rate > 0 || $fl_TCP_packets_rate > 0 } {
 
 	$ns at $start "new-rl-tcp 0 0 $currTime"
 	$ns at $start "new-fl-tcp 0 0 $currTime"
-	set currTime [expr $currTime + $tcp_duration + $time_margin/40]
+	set currTime [expr $currTime + $tcp_duration + $time_margin/$time_margin_factor]
 	set pingTime $currTime
 	$ns at $start "new-pings 0 0 $pingTime $ping_fid $ping_prio $ping_pkt_size"
 	if {$set_fid > 0 } {
@@ -1465,9 +1467,17 @@ set currTime [expr $currTime + 5.0]
 $ns at $currTime "set fixed_size 352000"
 set currTime [expr $currTime + 5.0]
 $ns at $currTime "new-http-session 4 $n(0) $h(0)"
+set currTime [expr $currTime + 5.0]
+$ns at $currTime "set fixed_size 10000"
+set currTime [expr $currTime + 5.0]
 
 # Web upload
 # $ns at $start "new-http-session 0 $h(0) $n(0)"
+$ns at $currTime "new-http-session 5 $h(0) $n(0)"
+set currTime [expr $currTime + 5.0]
+$ns at $currTime "set fixed_size 352000"
+set currTime [expr $currTime + 5.0]
+$ns at $currTime "new-http-session 5 $h(0) $n(0)"
 
 # Final single pings
 # if { $set_prio > 0 } {
