@@ -198,103 +198,134 @@ $satrouteobject_ compute_routes
 
 # set duration 86400 ; # one earth rotation
 # set duration 50820 ; # one orbit rotation
-# set duration 12705 ; # a quarter of an orbit
-set duration 60
+set duration 12705 ; # a quarter of an orbit
+# set duration 60
 
 $ns at 0.0 "$n0 dump_sats"
 
-for { set i 0} { $i < $duration } {incr i 1} {
-	set index [expr $num_pings_tx % 30]
-	switch $index {
+set index 10
+for { set i 0} { $i < [expr 20*30] } {incr i 30} {
+# 	set index [expr $num_pings_tx % 30]
+	switch -exact -- $index {
 		0 {
 			$ns at $i "$pingtx0 send"
+			puts "Ping to 0 sent"
 		}
 		1 {
 			$ns at $i "$pingtx1 send"
+			puts "Ping to 1 sent"
 		}
 		2 {
 			$ns at $i "$pingtx2 send"
+			puts "Ping to 2 sent"
 		}
 		3 {
 			$ns at $i "$pingtx3 send"
+			puts "Ping to 3 sent"
 		}
 		4 {
 			$ns at $i "$pingtx4 send"
+			puts "Ping to 4 sent"
 		}
 		5 {
 			$ns at $i "$pingtx5 send"
+			puts "Ping to 5 sent"
 		}
 		6 {
 			$ns at $i "$pingtx6 send"
+			puts "Ping to 6 sent"
 		}
 		7 {
 			$ns at $i "$pingtx7 send"
+			puts "Ping to 7 sent"
 		}
 		8 {
 			$ns at $i "$pingtx8 send"
+			puts "Ping to 8 sent"
 		}
 		9 {
 			$ns at $i "$pingtx9 send"
+			puts "Ping to 9 sent"
 		}
 		10 {
 			$ns at $i "$pingtx15 send"
+			puts "Ping to 10 sent"
 		}
 		11 {
 			$ns at $i "$pingtx16 send"
+			puts "Ping to 11 sent"
 		}
 		12 {
 			$ns at $i "$pingtx17 send"
+			puts "Ping to 12 sent"
 		}
 		13 {
 			$ns at $i "$pingtx18 send"
+			puts "Ping to 13 sent"
 		}
 		14 {
 			$ns at $i "$pingtx19 send"
+			puts "Ping to 14 sent"
 		}
 		15 {
 			$ns at $i "$pingtx20 send"
+			puts "Ping to 15 sent"
 		}
 		16 {
 			$ns at $i "$pingtx21 send"
+			puts "Ping to 16 sent"
 		}
 		17 {
 			$ns at $i "$pingtx22 send"
+			puts "Ping to 17 sent"
 		}
 		18 {
 			$ns at $i "$pingtx23 send"
+			puts "Ping to 18 sent"
 		}
 		19 {
 			$ns at $i "$pingtx24 send"
+			puts "Ping to 19 sent"
 		}
 		20 {
 			$ns at $i "$pingtx30 send"
+			puts "Ping to 20 sent"
 		}
 		21 {
 			$ns at $i "$pingtx31 send"
+			puts "Ping to 21 sent"
 		}
 		22 {
 			$ns at $i "$pingtx32 send"
+			puts "Ping to 22 sent"
 		}
 		23 {
 			$ns at $i "$pingtx33 send"
+			puts "Ping to 23 sent"
 		}
 		24 {
 			$ns at $i "$pingtx34 send"
+			puts "Ping to 24 sent"
 		}
 		25 {
 			$ns at $i "$pingtx35 send"
+			puts "Ping to 25 sent"
 		}
 		26 {
 			$ns at $i "$pingtx36 send"
+			puts "Ping to 26 sent"
 		}
 		27 {
 			$ns at $i "$pingtx37 send"
+			puts "Ping to 27 sent"
 		}
 		28 {
 			$ns at $i "$pingtx38 send"
+			puts "Ping to 28 sent"
 		}
 		29 {
 			$ns at $i "$pingtx39 send"
+			puts "Ping to 29 sent"
 		}
 		default {
       			puts "Invalid satellite index"

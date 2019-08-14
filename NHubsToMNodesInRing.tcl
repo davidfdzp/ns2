@@ -40,16 +40,32 @@ set per 0.0
 set bw1 150kb
 set bw2 120kb
 
-# The delay in the links depends on the distance between nodes and the speed of light in vaccuum: 299792 km/h
-# Worst case distance estimated between a hub and a node: 30000 km => 100 ms
-# Worst case distance between hub and node: 28102 km => 94 ms
-# Worst case distance measured between nodes 59205 km => 197.5 ms
+# Slurp connectivity matrix
+# catch {set cf [ open "connectivityMatrix4.txt" r]}
+# 9 pings sent and 9 pings received with RTT=[194.8, 1001.9] ms
+# catch {set cf [ open "connectivityMatrix6.txt" r]}
+# 13 pings sent and 13 pings received with RTT=[194.8, 1405.4] ms
+catch {set cf [ open "connectivityMatrix8.txt" r]}
 
-set opt(nodes)      	4                       ;# number of nodes
+set conn_matrix_data [ read -nonewline $cf ]
+close $cf
+
+# Process connectivity matrix data
+set data [split $conn_matrix_data "\n"]
+
+set opt(nodes) 0
+foreach line $data {
+	puts "$opt(nodes) $line"	
+	set opt(nodes) [expr $opt(nodes)+1]	; # number of nodes is equal to number of timeslots of the connectivity matrix
+}
 set opt(hubs)      	1                       ;# number of hubs
 
 set opt(time_btw_pkts)   $timeslot		  ;# seconds
 
+# The delay in the links depends on the distance between nodes and the speed of light in vaccuum: 299792 km/h
+# Worst case distance estimated between a hub and a node: 30000 km => 100 ms
+# Worst case distance between hub and node: 28102 km => 94 ms
+# Worst case distance measured between nodes 59205 km => 197.5 ms
 set latencyHubNode 94ms
 set latencyBtwNodes 197.5ms
 
@@ -164,120 +180,56 @@ for {set j 0} {$j < $opt(hubs)} {incr j} {
 
 set currentTime $startpingtime
 
-# Connectivity matrix for M=4 nodes.
-# TODO: configure opt nodes and these connections from connectivity matrix txt file.
-if { $opt(nodes) == 4 } {
-	# Assuming permanent connectivity among GWs
-
-	for {set i 0} { $i < [expr 2*$opt(hubs)] } {incr i} {
-		# Timeslot 1
-		# Connections up: [ 01 -> 04 -> 02 -> 03 -> 01 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(0)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(0)
-		# Connections up: [ 01 <- 04 <- 02 <- 03 <- 01 ] 
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(0)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(2)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(0)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(2)
-
-		# Timeslot 2
-		# Connections up: [ 01 -> 03 -> 02 -> 04 -> 01 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(0)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(0)
-		# Connections up: [ 01 <- 03 <- 02 <- 04 <- 01 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(3)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(3)
-
-		# Timeslot 3
-		# Connections up: [ 02 -> 01 -> 03 -> 04 -> 02 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(0)
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(1)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(0)
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(1)
-		# Connections up: [ 02 <- 01 <- 03 <- 04 <- 02 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(3)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(3)
-
-		# Timeslot 4
-		# Connections up: [ 02 -> 04 -> 03 -> 01 -> 02 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(1)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(0)
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(1)
-		# Connections up: [ 02 <- 04 <- 03 <- 01 <- 02 ]
-		set currentTime [expr $currentTime + $linkSetupTime]
-		$ns rtmodel-at [expr $currentTime] up $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] up $n(2) $n(3)
-		$ns rtmodel-at [expr $currentTime] up $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] up $n(1) $n(0)
-		# Connections down:
-		set currentTime [expr $currentTime + $upTime]
-		$ns rtmodel-at [expr $currentTime] down $n(3) $n(1)
-		$ns rtmodel-at [expr $currentTime] down $n(2) $n(3)
-		$ns rtmodel-at [expr $currentTime] down $n(0) $n(2)
-		$ns rtmodel-at [expr $currentTime] down $n(1) $n(0)
+# Connectivity matrix for nodes
+# Configure nodes connections according to connectivity matrix txt file.
+# Assuming permanent connectivity among GWs
+# TODO: non-permanent connectivity (read visibility matrix)
+for {set i 0} { $i < [expr 2*$opt(hubs)] } {incr i} {
+	foreach line $data {
+		# puts "$line"
+		# Repeat 4 times:
+		for {set index 0} {$index < 4} {incr index} {
+			if { [expr $index % 2] == 0 } {
+				set currentTime [expr $currentTime + $linkSetupTime]
+			} else {
+				set currentTime [expr $currentTime + $upTime]
+			}
+			set connElem [split $line "\]\["]		
+			set j 0
+			foreach conn $connElem {
+				set nodes [split $conn " "]
+				set k 0
+				foreach nk $nodes {
+					if { [expr $j % 2] == 1 } {				
+						if { $k != 0 && $k != 3 } {
+							scan $nk %d nodeNum
+							incr nodeNum -1
+							if { $j ==1 && $k == 1 } {
+								set firstNode $nodeNum
+								set prevNode $nodeNum
+							} else {
+								if { [expr $index % 2] == 0 } {
+									$ns rtmodel-at [expr $currentTime] up $n($prevNode) $n($nodeNum)
+								} else {
+									$ns rtmodel-at [expr $currentTime] down $n($prevNode) $n($nodeNum)
+								}
+								# puts "$prevNode -> $nodeNum"
+								set prevNode $nodeNum
+							}
+						}
+					}
+					set k [ expr $k + 1]
+				}
+				set j [expr $j + 1]
+			}
+			if { [expr $index % 2] == 0 } {
+				$ns rtmodel-at [expr $currentTime] up $n($prevNode) $n($firstNode)
+			} else {
+				$ns rtmodel-at [expr $currentTime] down $n($prevNode) $n($firstNode)
+			}			
+			# puts "$prevNode -> $nodeNum"
+		}
 	}
-
-} else {
-	puts "Error: Invalid number of nodes $opt(nodes). No connectivity matrix specified for this case."
-	exit
 }
 
 set stoptime $currentTime
@@ -489,4 +441,3 @@ proc finish {} {
 $ns run
 
 exit 0
-
