@@ -1,5 +1,5 @@
 # Slurp connectivity matrix
-catch {set cf [ open "connectivityMatrix4.txt" r]}
+catch {set cf [ open "connectivityMatrix24.txt" r]}
 set conn_matrix_data [ read -nonewline $cf ]
 close $cf
 

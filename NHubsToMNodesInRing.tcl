@@ -42,10 +42,20 @@ set bw2 120kb
 
 # Slurp connectivity matrix
 # catch {set cf [ open "connectivityMatrix4.txt" r]}
-# 9 pings sent and 9 pings received with RTT=[194.8, 1001.9] ms
+# One hub: 9 pings sent and 9 pings received with RTT=[194.8, 1001.9] ms
 # catch {set cf [ open "connectivityMatrix6.txt" r]}
-# 13 pings sent and 13 pings received with RTT=[194.8, 1405.4] ms
-catch {set cf [ open "connectivityMatrix8.txt" r]}
+# One hub: 13 pings sent and 13 pings received with RTT=[194.8, 1405.4] ms
+# catch {set cf [ open "connectivityMatrix8.txt" r]}
+# One hub: 17 pings sent and 17 pings received with RTT=[194.8, 1809.0] ms
+# catch {set cf [ open "connectivityMatrix24.txt" r]}
+# One hub: 49 pings sent and 49 pings received with RTT=[194.8, 1809.0] ms
+# catch {set cf [ open "connectivityMatrix30.txt" r]}
+# One hub: 61 pings sent and 61 pings received with RTT=[194.8, 1809.0] ms
+catch {set cf [ open "connectivityMatrix36.txt" r]}
+# catch {set cf [ open "connectivityMatrix40.txt" r]}
+# catch {set cf [ open "connectivityMatrix42.txt" r]}
+# catch {set cf [ open "connectivityMatrix48.txt" r]}
+# catch {set cf [ open "connectivityMatrix54.txt" r]}
 
 set conn_matrix_data [ read -nonewline $cf ]
 close $cf
