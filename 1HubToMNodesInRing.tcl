@@ -1,9 +1,8 @@
 ##
 ## Network Topology of N hubs that can be connected each one to one and only one of M possible gateway nodes
-## connected in ring intermittently following a connectivity matrix (N <= M). Then, K workstations can connect to
-## the gateways via the most convenient hub.
+## connected in ring intermittently following a connectivity matrix (N <= M)
 ##
-## Simulated topology consists of N hubs connecting K workstations to N gateways through 150 kbit/s full duplex links. The workstations connect to the N hubs through a high speed LAN.
+## Simulated topology consists of N hubs connecting to N gateways through 150 kbit/s full duplex links.
 ##
 ## The M possible nodes are connected intermitently in ring, following a connectivity matrix, in a half-duplex way.
 ## The connectivity matrix period is equal to M (number of nodes) timeslots of timeslot duration (40 s).
@@ -11,11 +10,11 @@
 ## The first part of timeslot A -> B, then A <- B. 
 ## The link rate is 120 kbit/s and there are two 16 s connections possible in each direction each 40 s.
 ##
-## There are ping agents at the workstations and at each node to characterize the network latency.
-## First each node pings each workstation, then each workstation pings to each node.
-## So, if M nodes have to ping K workstations M*K pings are sent in M*K timeslots. Then K workstations send K*M pings to nodes.
-## In total 2*M*K pings are sent to characterize network latency in 2*M*K timeslots.
-## The connectivity matrix needs to be repeated 2*K times.
+## There are ping agents at the hubs and at each node to characterize the network latency.
+## First each node pings each hub, then each hub pings to each node.
+## So, if M nodes have to ping N hubs M*N pings are sent in M*N timeslots. Then N hubs send N*M pings to nodes.
+## In total 2*M*N pings are sent to characterize network latency in 2*M*N timeslots.
+## The connectivity matrix needs to be repeated 2*N times.
 ## 
 ## TODO:
 ## A VoIP could be established between any hub and any node.
@@ -46,25 +45,16 @@ set lan_delay 1ms
 set lan_capacity 1Gb
 
 # Slurp connectivity matrix
-# catch {set cf [open "connectivityMatrix2.txt" r]}
-# One hub: 5 pings sent and 5 pings received with RTT=[196.8, 600.4] ms
-# Two hubs: 5 pings sent and 5 pings received with RTT=[196.8, 196.8] ms.
+catch {set cf [open "connectivityMatrix2.txt" r]}
+# One hub: 5 pings sent and 5 pings received with RTT=[194.8, 598.4] ms
 # catch {set cf [ open "connectivityMatrix4.txt" r]}
-# One hub: 9 pings sent and 9 pings received with RTT=[196.8, 1003.9] ms.
-# Two & Three hubs: 9 pings sent and 9 pings received with RTT=[196.8, 600.4] ms.
-# Four hubs: 9 pings sent and 9 pings received with RTT=[196.8, 196.8] ms.
+# One hub: 9 pings sent and 9 pings received with RTT=[194.8, 1001.9] ms
 # catch {set cf [ open "connectivityMatrix6.txt" r]}
-# One hub: 13 pings sent and 13 pings received with RTT=[196.8, 1407.4] ms.
-# Two and Three hubs: 13 pings sent and 13 pings received with RTT=[196.8, 1003.9] ms.
-# Four and Five hubs: 13 pings sent and 13 pings received with RTT=[196.8, 600.4] ms
-catch {set cf [ open "connectivityMatrix8.txt" r]}
-# One hub: 17 pings sent and 17 pings received with RTT=[196.8, 1811.0] ms
-# Two hubs: 17 pings sent and 17 pings received with RTT=[196.8, 1407.4] ms
-# Three, Four & Five hubs: 17 pings sent and 17 pings received with RTT=[196.8, 1003.9] ms
-# Six & Seven: 17 pings sent and 17 pings received with RTT=[196.8, 600.4] ms
-catch {set cf [ open "connectivityMatrix24.txt" r]}
-# One, Two, Three, Four, Five, Six, Seven & Eight hubs: 49 pings sent and 49 pings received with RTT=[196.8, 1811.0] ms
-# 
+# One hub: 13 pings sent and 13 pings received with RTT=[194.8, 1405.4] ms
+# catch {set cf [ open "connectivityMatrix8.txt" r]}
+# One hub: 17 pings sent and 17 pings received with RTT=[194.8, 1809.0] ms
+# catch {set cf [ open "connectivityMatrix24.txt" r]}
+# One hub: 49 pings sent and 49 pings received with RTT=[194.8, 1809.0] ms
 # catch {set cf [ open "connectivityMatrix30.txt" r]}
 # One hub: 61 pings sent and 61 pings received with RTT=[194.8, 1809.0] ms
 # catch {set cf [ open "connectivityMatrix36.txt" r]}
@@ -83,14 +73,12 @@ close $cf
 # Process connectivity matrix data
 set data [split $conn_matrix_data "\n"]
 
-set opt(ws) 1
-
 set opt(nodes) 0
 foreach line $data {
 	puts "$opt(nodes) $line"	
 	set opt(nodes) [expr $opt(nodes)+1]	; # number of nodes is equal to number of timeslots of the connectivity matrix
 }
-set opt(hubs)      	16                      ;# number of hubs
+set opt(hubs)      	1                       ;# number of hubs
 
 if { $opt(hubs) > $opt(nodes) } {
 	puts "Limiting number of hubs $opt(hubs) to number of nodes $opt(nodes)"
@@ -114,11 +102,6 @@ set ns [new Simulator]
 # Enable dynamic routing distance vector protocol
 $ns rtproto DV
 
-# Workstations
-for {set k 0} {$k < $opt(ws)} {incr k} {
-	set ws($k) [$ns node]
-	puts "ws($k)"
-}
 # Hubs
 for {set j 0} {$j < $opt(hubs)} {incr j} {
 	set hub($j) [$ns node]
@@ -139,10 +122,6 @@ $ns namtrace-all $nf
 # Any hub can be potentially connected to any node (only one) at any time (scheduled contact plan)
 # And any node can be connected to any hub, but only to one.
 for {set j 0} {$j < $opt(hubs)} {incr j} {
-	# Connect the workstations to the hub using LAN
-	for {set k 0} {$k < $opt(ws)} {incr k} {
-		$ns duplex-link $ws($k) $hub($j) $lan_capacity $lan_delay DropTail
-	}
 	# Connect the hubs to the nodes
 	for {set i 0} {$i < $opt(nodes)} {incr i} {
 		$ns duplex-link $hub($j) $n($i) $bw1 $latencyHubNode DropTail
@@ -231,7 +210,7 @@ set currentTime $startpingtime
 # Configure nodes connections according to connectivity matrix txt file.
 # Assuming permanent connectivity among GWs
 # TODO: non-permanent connectivity (read visibility matrix)
-for {set i 0} { $i < [expr 2*$opt(ws)] } {incr i} {
+for {set i 0} { $i < [expr 2*$opt(hubs)] } {incr i} {
 	foreach line $data {
 		# puts "$line"
 		# Repeat 4 times:
@@ -304,43 +283,43 @@ Agent/Ping instproc recv {from rtt} {
 	set currsrcnode [$node_ id]
 	set currdstnode $from
 	if { $currsrcnode > $currdstnode } {
-		# This is a ping received from a node, so performed from workstation to node
-		set nodeSrcIndex [ expr $currsrcnode - $opt(hubs) - $opt(ws)]
+		# This is a ping performed from a node to a hub
+		set nodeSrcIndex [ expr $currsrcnode - $opt(hubs)]
 		set nodeDstIndex -1
-		set bpIndexNode [expr $currdstnode + $nodeSrcIndex*2*$opt(ws) ]
-		set bpIndexWs [expr $currdstnode + $nodeSrcIndex*2*$opt(ws) + 1 ]
+		set bpIndexNode [expr $currdstnode + $nodeSrcIndex*2*$opt(hubs) ]
+		set bpIndexHub [expr $currdstnode + $nodeSrcIndex*2*$opt(hubs) + 1 ]
 		puts "t=$pingrxtime: ping agent $bpIndexNode at ns-2 node $currsrcnode (node $nodeSrcIndex) received ping answer from \
-		ping agent $bpIndexWs at workstation $currdstnode, with round-trip-time $rtt ms."
+		ping agent $bpIndexHub at hub $currdstnode, with round-trip-time $rtt ms."
 		set nodeSrcIndex [expr $nodeSrcIndex + 1]
-		set currsrcnode [expr $nodeSrcIndex + $opt(hubs) + $opt(ws)]
+		set currsrcnode [expr $nodeSrcIndex + $opt(hubs)]
 		if { $nodeSrcIndex == $opt(nodes) } {
 			set nodeSrcIndex 0
-			set currsrcnode [expr $nodeSrcIndex + $opt(hubs) + $opt(ws)]
+			set currsrcnode [expr $nodeSrcIndex + $opt(hubs)]
 			set currdstnode [expr $currdstnode + 1]
-			if { $currdstnode == $opt(ws) } {
-				# All nodes have ping all worstations, so now workstations ping nodes
+			if { $currdstnode == $opt(hubs) } {
+				# All nodes have ping all hubs, so now hubs ping nodes
 				set currsrcnode 0
-				set currdstnode [expr $opt(hubs) + $opt(ws)]
+				set currdstnode $opt(hubs)
 			}
 		}
 	} else {
-		# This is a ping received from a workstation, so performed from a node to a workstation
+		# This is a ping performed from a hub to a node
 		set nodeSrcIndex -1
-		set nodeDstIndex [ expr $currdstnode - $opt(hubs) - $opt(ws)]
-		set bpIndexNode [expr $currsrcnode + $nodeDstIndex*2*$opt(ws) ]
-		set bpIndexWs [expr $currsrcnode + $nodeDstIndex*2*$opt(ws) + 1 ]
-		puts "t=$pingrxtime: ping agent $bpIndexWs at workstation $currsrcnode received ping answer from \
+		set nodeDstIndex [ expr $currdstnode - $opt(hubs)]
+		set bpIndexNode [expr $currsrcnode + $nodeDstIndex*2*$opt(hubs) ]
+		set bpIndexHub [expr $currsrcnode + $nodeDstIndex*2*$opt(hubs) + 1 ]
+		puts "t=$pingrxtime: ping agent $bpIndexHub at hub $currsrcnode received ping answer from \
 		ping agent $bpIndexNode at ns-2 node $currdstnode (node $nodeDstIndex), with round-trip-time $rtt ms."
 		set nodeDstIndex [expr $nodeDstIndex + 1]
-		set currdstnode [expr $nodeDstIndex + $opt(hubs) + $opt(ws)]
+		set currdstnode [expr $nodeDstIndex + $opt(hubs)]
 		if { $nodeDstIndex == $opt(nodes) } {
 			set nodeDstIndex 0
-			set currdstnode [expr $nodeDstIndex + $opt(hubs) + $opt(ws)]
+			set currdstnode [expr $nodeDstIndex + $opt(hubs)]
 			set currsrcnode [expr $currsrcnode + 1]
-			if { $currsrcnode == $opt(ws) } {
-				# All workstations have ping all nodes, so now nodes ping workstations
+			if { $currsrcnode == $opt(hubs) } {
+				# All hubs have ping all nodes, so now nodes ping hubs
 				set currdstnode 0
-				set currsrcnode [expr $opt(hubs) + $opt(ws)]
+				set currsrcnode $opt(hubs)
 			}
 		}
 	}
@@ -360,20 +339,20 @@ Agent/Ping instproc recv {from rtt} {
 	set startpingtime [expr $numTimeSlots * $timeslot]
 	if { $startpingtime < $stoppingtime } {
 		if { $currsrcnode > $currdstnode } {
-			# This is a ping performed from a node to a workstation
-			set nodeSrcIndex [ expr $currsrcnode - $opt(hubs) - $opt(ws)]
-			set bpIndexNode [expr $currdstnode + $nodeSrcIndex*2*$opt(ws) ]
-			set bpIndexWs [expr $currdstnode + $nodeSrcIndex*2*$opt(ws) + 1 ]
+			# This is a ping performed from a node to a hub
+			set nodeSrcIndex [ expr $currsrcnode - $opt(hubs)]
+			set bpIndexNode [expr $currdstnode + $nodeSrcIndex*2*$opt(hubs) ]
+			set bpIndexHub [expr $currdstnode + $nodeSrcIndex*2*$opt(hubs) + 1 ]
 			set bpindex $bpIndexNode
 			puts "t=$startpingtime s: ping agent $bpIndexNode at ns-2 node $currsrcnode (node $nodeSrcIndex) will send ping request to \
-			ping agent $bpIndexWs at workstation $currdstnode."
+			ping agent $bpIndexHub at hub $currdstnode."
 		} else {
-			# This is a ping performed from a workstation to a node
-			set nodeDstIndex [ expr $currdstnode - $opt(hubs) - $opt(ws)]
-			set bpIndexNode [expr $currsrcnode + $nodeDstIndex*2*$opt(ws) ]
-			set bpIndexWs [expr $currsrcnode + $nodeDstIndex*2*$opt(ws) + 1 ]
-			set bpindex $bpIndexWs
-			puts "t=$startpingtime s: ping agent $bpIndexWs at workstation $currsrcnode will send ping request to \
+			# This is a ping performed from a hub to a node
+			set nodeDstIndex [ expr $currdstnode - $opt(hubs)]
+			set bpIndexNode [expr $currsrcnode + $nodeDstIndex*2*$opt(hubs) ]
+			set bpIndexHub [expr $currsrcnode + $nodeDstIndex*2*$opt(hubs) + 1 ]
+			set bpindex $bpIndexHub
+			puts "t=$startpingtime s: ping agent $bpIndexHub at hub $currsrcnode will send ping request to \
 			ping agent $bpIndexNode at ns-2 node $currdstnode (node $nodeDstIndex)."
 		}
 		$ns at $startpingtime "$bp($bpindex) send"
@@ -382,46 +361,46 @@ Agent/Ping instproc recv {from rtt} {
 	}
 }
 
-# Build ping agents. Each node will try to ping a workstation and each workstation will try to ping each node.
+# Build ping agents. Each node will try to ping a hub and each hub will try to ping each node.
 for {set i 0} {$i < $opt(nodes)} {incr i} {
-	for {set j 0} {$j < $opt(ws)} {incr j} {
-		# Building node i to workstation j ping Agents
-		set bpIndexNode [expr $j + $i*2*$opt(ws) ]
-		puts "Setting up ping agent $bpIndexNode at node $i to ping workstation $j."
-		# node i ping Agent to workstation j
+	for {set j 0} {$j < $opt(hubs)} {incr j} {
+		# Building node i to hub j ping Agents
+		set bpIndexNode [expr $j + $i*2*$opt(hubs) ]
+		puts "Setting up ping agent $bpIndexNode at node $i to ping hub $j."
+		# node i ping Agent to hub j
 		set bp($bpIndexNode) [new Agent/Ping]
 		$bp($bpIndexNode) set packetSize_ $pingPacketSize
 		$bp($bpIndexNode) set fid_ $pingFid
 		$bp($bpIndexNode) set prio_ $pingPrio
 		$ns attach-agent $n($i) $bp($bpIndexNode)
-		# First, the node 0 will try to ping workstation 0, then node 1 ... until node M
-		# Then, the node 0 will try to ping workstation 1, then node 1 ...
-		# Then, the workstation 0 will try to ping node 0...
+		# First, the node 0 will try to ping hub 0, then node 1 ... until node M
+		# Then, the node 0 will try to ping hub 1, then node 1 ...
+		# Then, the hub 0 will try to ping node 0...
 		if { $i==0 && $j==0 } {
 			$ns at $startpingtime "$bp($bpIndexNode) send"
 			set num_pings_tx [expr $num_pings_tx + 1]
-			puts "t = $startpingtime s: node $i will send [$bp($bpIndexNode) set packetSize_] bytes ping request to workstation $j."
+			puts "t = $startpingtime s: node $i will send [$bp($bpIndexNode) set packetSize_] bytes ping request to hub $j."
 		}
 		# $ns at $stoptime "$bp($bpIndexNode) set packetSize_ $pingPacketSize2"
 		# $ns at [expr ($startime+$stoptime)/2.0] "$bp($bpIndexNode) send"
 		# $ns at $stoppingtime "$bp($bpIndexNode) send"
 
-		# Workstation j Ping Agent to node i
-		set bpIndexWs [expr $j + $i*2*$opt(ws) + 1 ]
-		puts "Setting up ping agent $bpIndexWs at workstation $j to ping node $i."
-		set bp($bpIndexWs) [new Agent/Ping]
-		$bp($bpIndexWs) set packetSize_ $pingPacketSize
-		$bp($bpIndexWs) set fid_ $pingFid
-		$bp($bpIndexWs) set prio_ $pingPrio
-		$ns attach-agent $ws($j) $bp($bpIndexWs)
-		$ns connect $bp($bpIndexNode) $bp($bpIndexWs)
-		puts "Ping agent $bpIndexNode is connected to ping agent $bpIndexWs"
-		# $ns at $stoptime "$bp($bpIndexWs) set packetSize_ $pingPacketSize2"
+		# Hub j Ping Agent to node i
+		set bpIndexHub [expr $j + $i*2*$opt(hubs) + 1 ]
+		puts "Setting up ping agent $bpIndexHub at hub $j to ping node $i."
+		set bp($bpIndexHub) [new Agent/Ping]
+		$bp($bpIndexHub) set packetSize_ $pingPacketSize
+		$bp($bpIndexHub) set fid_ $pingFid
+		$bp($bpIndexHub) set prio_ $pingPrio
+		$ns attach-agent $hub($j) $bp($bpIndexHub)
+		$ns connect $bp($bpIndexNode) $bp($bpIndexHub)
+		puts "Ping agent $bpIndexNode is connected to ping agent $bpIndexHub"
+		# $ns at $stoptime "$bp($bpIndexHub) set packetSize_ $pingPacketSize2"
 	}
 }
 
 # Attach agents for FTP transfer from node 0 to hub 0
-set tcp0_0_ [$ns create-connection TCP $n(0) TCPSink $ws(0) 0]
+set tcp0_0_ [$ns create-connection TCP $n(0) TCPSink $hub(0) 0]
 $tcp0_0_ set packetSize_ $mss
 # Trace ack_ and maxseq_ to get the amount of data transferred
 $tcp0_0_ attach $f
@@ -437,7 +416,7 @@ $s1 set fid_ 0
 $ns attach-agent $n(0) $s1
 
 set null1 [new Agent/UDP]
-$ns attach-agent $ws(0) $null1
+$ns attach-agent $hub(0) $null1
 
 $ns connect $s1 $null1
 
@@ -463,20 +442,20 @@ $ns at $endtime "finish"
 proc finish {} {
 	global ns voip_r tcp0_0_ startime stoptime num_pings_rx num_pings_tx minrtt maxrtt
 
-	# $voip_r update_score
-	# puts "[$voip_r set delay_] [$voip_r set rscore_] [$voip_r set mos_]"
+	$voip_r update_score
+	puts "[$voip_r set delay_] [$voip_r set rscore_] [$voip_r set mos_]"
 
-	# set lastAck [$tcp0_0_ set ack_]
-	# set lastSEQ [$tcp0_0_ set maxseq_]
-	# set reTxNum [$tcp0_0_ set nrexmitpack_]
-	# puts "Final ack: $lastAck, final seq num: $lastSEQ, Number of reTx packets: $reTxNum"
-	# puts "Estimated goodput: [expr $lastAck*8*1.460/($stoptime-$startime)] kbits/s [expr $lastAck*1460] bytes in [expr $stoptime-$startime] s"
-	# puts "Estimated throughput: [expr $lastSEQ*1.500*8/($stoptime-$startime)] kbits/s [expr $lastSEQ*1500] bytes in [expr $stoptime-$startime] s"
+	set lastAck [$tcp0_0_ set ack_]
+	set lastSEQ [$tcp0_0_ set maxseq_]
+	set reTxNum [$tcp0_0_ set nrexmitpack_]
+	puts "Final ack: $lastAck, final seq num: $lastSEQ, Number of reTx packets: $reTxNum"
+	puts "Estimated goodput: [expr $lastAck*8*1.460/($stoptime-$startime)] kbits/s [expr $lastAck*1460] bytes in [expr $stoptime-$startime] s"
+	puts "Estimated throughput: [expr $lastSEQ*1.500*8/($stoptime-$startime)] kbits/s [expr $lastSEQ*1500] bytes in [expr $stoptime-$startime] s"
 
 	# puts "$num_pings_tx pings sent at interval t=\[$minstartpingtime, $maxstartpingtime\] s."
-    # puts "$num_pings_rx pings received at interval t=\[$minpingtimerx, $maxpingtimerx\] s with RTT=\[$minrtt, $maxrtt] ms."
+    	# puts "$num_pings_rx pings received at interval t=\[$minpingtimerx, $maxpingtimerx\] s with RTT=\[$minrtt, $maxrtt] ms."
 	puts "$num_pings_tx pings sent and $num_pings_rx pings received with RTT=\[$minrtt, $maxrtt] ms."
-    puts "Ping loss rate: [expr 1 - (1.0 * $num_pings_rx) / $num_pings_tx ]"
+    	puts "Ping loss rate: [expr 1 - (1.0 * $num_pings_rx) / $num_pings_tx ]"
 
 	puts "run nam NHubsToMNodesInRing.nam..."
 	exec nam NHubsToMNodesInRing.nam &
