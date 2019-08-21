@@ -205,11 +205,13 @@ $ns connect $pingtx $pingrx
 set satrouteobject_ [new SatRouteObject]
 $satrouteobject_ compute_routes
 
-set duration 86400 ; # one earth rotation
-# set duration 50820 ; # one orbit rotation
-# set duration 12705 ; # a quarter of an orbit
+set duration 86164 ; # one earth rotation
 
-$ns at 0.0 "$n0 dump_sats"
+set num_dumps 10
+set time_step [expr (1.0*$duration)/$num_dumps]
+for { set i 0 } { $i < $num_dumps } {incr i} { 
+	$ns at [expr $i*$time_step] "$n0 dump_sats"
+}
 
 for { set i 0} { $i < $duration } {incr i} {
 	$ns at $i "$pingtx send"

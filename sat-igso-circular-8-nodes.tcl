@@ -38,14 +38,28 @@ if {![info exists ns]} {
 	puts "        sat-igso-circular-8.tcl script-- run `sat-igso-circular-8.tcl' instead"
 	exit
 }
-set n0 [$ns node]; $n0 set-position $alt $inc 60 240 1
-set n1 [$ns node]; $n1 set-position $alt $inc -30 300 2 
-set n2 [$ns node]; $n2 set-position $alt $inc -120 60 1 
-set n3 [$ns node]; $n3 set-position $alt $inc 150 120 2
-set n4 [$ns node]; $n4 set-position $alt $inc -80 5 3 
-set n5 [$ns node]; $n5 set-position $alt $inc 10 275 3
-set n6 [$ns node]; $n6 set-position $alt $inc 100 185 3
-set n7 [$ns node]; $n7 set-position $alt $inc -170 95 3
+# $n0 set-position $alt $inc $lon $alpha $plane
+# lon specifies the East longitude of "ascending node"
+# alpha specifies the initial angle with respect to the "ascending node"
+# offset to position the orbits above the desired longitude
+set offset +70
+proc compute_lon { lon offset } {
+	set lon [expr $lon + $offset]
+	if { $lon > 180 } {
+		set lon [expr $lon - 360]
+	} elseif { $lon < -180 } {
+		set lon [expr $lon + 360]
+	}
+	return $lon
+}
+set n0 [$ns node]; $n0 set-position $alt $inc [compute_lon 60 $offset] 240 1
+set n1 [$ns node]; $n1 set-position $alt $inc [compute_lon -30 $offset] 300 2 
+set n2 [$ns node]; $n2 set-position $alt $inc [compute_lon -120 $offset] 60 1 
+set n3 [$ns node]; $n3 set-position $alt $inc [compute_lon 150 $offset] 120 2
+set n4 [$ns node]; $n4 set-position $alt $inc [compute_lon -80 $offset] 5 3 
+set n5 [$ns node]; $n5 set-position $alt $inc [compute_lon 10 $offset] 275 3
+set n6 [$ns node]; $n6 set-position $alt $inc [compute_lon 100 $offset] 185 3
+set n7 [$ns node]; $n7 set-position $alt $inc [compute_lon -170 $offset] 95 3
 
 # By setting the next_ variable on polar sats; handoffs can be optimized
 
