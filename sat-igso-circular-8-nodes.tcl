@@ -42,16 +42,7 @@ if {![info exists ns]} {
 # lon specifies the East longitude of "ascending node"
 # alpha specifies the initial angle with respect to the "ascending node"
 # offset to position the orbits above the desired longitude
-set offset +70
-proc compute_lon { lon offset } {
-	set lon [expr $lon + $offset]
-	if { $lon > 180 } {
-		set lon [expr $lon - 360]
-	} elseif { $lon < -180 } {
-		set lon [expr $lon + 360]
-	}
-	return $lon
-}
+source sat-lon-offset.tcl
 set n0 [$ns node]; $n0 set-position $alt $inc [compute_lon 60 $offset] 240 1
 set n1 [$ns node]; $n1 set-position $alt $inc [compute_lon -30 $offset] 300 2 
 set n2 [$ns node]; $n2 set-position $alt $inc [compute_lon -120 $offset] 60 1 

@@ -225,7 +225,7 @@ proc finish {} {
 	close $fileId
 	puts "$num_pings_tx packets transmitted, $num_pings_rx received, [expr (100.0*($num_pings_tx-$num_pings_rx))/$num_pings_tx]% packet loss, time $duration s"
 	puts "rtt min/avg/max/stdev = $min_rtt/$avg/$max_rtt/[expr sqrt(1.0*$quk/($num_pings_rx-1))] ms"
-	exec ./sat-igso-circular-4-ping.sh
+	exec ./sat-igso-circular-2-ping.sh
 	exit 0
 }
 

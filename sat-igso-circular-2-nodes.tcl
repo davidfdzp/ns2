@@ -38,8 +38,10 @@ if {![info exists ns]} {
 	puts "        sat-igso-circular-2-ping.tcl script-- run `sat-igso-circular-2-ping.tcl' instead"
 	exit
 }
-set n0 [$ns node]; $n0 set-position $alt $inc 60 240 1
-set n2 [$ns node]; $n2 set-position $alt $inc -120 60 1 
+
+source sat-lon-offset.tcl
+set n0 [$ns node]; $n0 set-position $alt $inc [compute_lon 60 $offset] 240 1
+set n2 [$ns node]; $n2 set-position $alt $inc [compute_lon -120 $offset] 60 1 
 
 # By setting the next_ variable on polar sats; handoffs can be optimized
 $n0 set_next $n2; $n2 set_next $n0
