@@ -50,7 +50,7 @@ set lan_capacity 1Gb
 # One hub: 3 pings sent and 3 pings received with RTT=[196.8, 613.2] ms.
 # Two hubs: 3 pings sent and 3 pings received with RTT=[196.8, 196.8] ms.
 
-# catch {set cf [ open "connectivityMatrix4.txt" r]}
+catch {set cf [ open "connectivityMatrix4.txt" r]}
 # One hub: 7 pings sent and 7 pings received with RTT=[196.8, 1030.5] ms.
 # Two hubs: 7 pings sent and 7 pings received with RTT=[196.8, 614.3] ms.
 # Three hubs: 7 pings sent and 7 pings received with RTT=[196.8, 614.5] ms.
@@ -65,7 +65,7 @@ set lan_capacity 1Gb
 # One, Two and Three hubs: 16 pings sent and 16 pings received with RTT=[196.8, 1029.5] ms.
 # Four, Five, Six and Seven hubs: 16 pings sent and 16 pings received with RTT=[196.8, 613.2] ms
 
-catch {set cf [ open "connectivityMatrix24.txt" r]}
+# catch {set cf [ open "connectivityMatrix24.txt" r]}
 # One, Two, Three, Four, Five, Six, Seven and Eight hubs: 48 pings sent and 48 pings received with RTT=[196.8, 1029.5] ms.
 # Sixteen: 48 pings sent and 48 pings received with RTT=[196.8, 613.2] ms
 
@@ -100,7 +100,7 @@ foreach line $data {
 	puts "$opt(nodes) $line"	
 	set opt(nodes) [expr $opt(nodes)+1]	; # number of nodes is equal to number of timeslots of the connectivity matrix
 }
-set opt(hubs)      	16                     ;# number of hubs
+set opt(hubs)      	1                     ;# number of hubs
 
 if { $opt(hubs) > $opt(nodes) } {
 	puts "Limiting number of hubs $opt(hubs) to number of nodes $opt(nodes)"
